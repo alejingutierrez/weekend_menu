@@ -12,7 +12,7 @@ export default async function AdminPage() {
   const menu = await readMenu();
   return (
     <main className="admin-shell admin-shell-wide">
-      <EditorForm menu={menu} />
+      <EditorForm initialMenu={menu} />
     </main>
   );
 }

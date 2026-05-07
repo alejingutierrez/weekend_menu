@@ -23,7 +23,8 @@ export type PriceTier = {
 export type Burger = {
   name: string;
   desc: string;
-  icons?: string[];
+  /** Free-form string of emoji decorations (e.g. "🌶️🌶️" or "🌱"). */
+  icons?: string;
   tiers: PriceTier[];
 };
 

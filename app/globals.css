@@ -549,7 +549,14 @@ body {
 .admin-shell-wide {
   flex-direction: column;
   align-items: stretch;
-  padding: 32px 16px 80px;
+  /* Bottom padding leaves room for the sticky save bar. */
+  padding: 24px 14px 110px;
+}
+
+@media (min-width: 720px) {
+  .admin-shell-wide {
+    padding: 32px 16px 120px;
+  }
 }
 
 .admin-card {
@@ -600,6 +607,9 @@ body {
   border: 1.5px solid var(--brand-red);
   border-radius: var(--radius-card);
   padding: 22px 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .admin-section {
@@ -625,11 +635,17 @@ body {
 .admin-fieldset {
   border: 1px solid var(--brand-cream-deep);
   border-radius: var(--radius-md);
-  padding: 12px 14px 14px;
+  padding: 14px 14px 14px;
   margin: 0 0 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
+}
+
+.admin-fieldset-compact {
+  padding: 12px 14px;
+  gap: 8px;
 }
 
 .admin-fieldset legend {
@@ -637,6 +653,95 @@ body {
   font-size: 14px;
   color: var(--brand-red);
   padding: 0 6px;
+  max-width: calc(100% - 40px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-delete {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--brand-red);
+  background: var(--white);
+  color: var(--brand-red);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-delete:hover,
+.admin-delete:focus-visible {
+  background: var(--brand-red);
+  color: var(--white);
+  outline: none;
+}
+
+.admin-delete-inline {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+}
+
+.admin-add {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--brand-cream);
+  border: 1.5px dashed var(--brand-blue);
+  color: var(--brand-blue);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-add:hover,
+.admin-add:focus-visible {
+  background: var(--brand-blue-pale);
+  outline: none;
+}
+
+.admin-subsection {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--brand-cream-deep);
+}
+
+.admin-subsection:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.admin-subsection-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-red);
+  margin: 4px 0 10px;
+}
+
+.admin-subsection-suffix {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .admin-field {
@@ -697,20 +802,8 @@ body {
   flex-wrap: wrap;
 }
 
-.admin-row-stack {
-  flex-direction: column;
-  border-bottom: 1px dashed var(--brand-cream-deep);
-  padding-bottom: 8px;
-}
-
-.admin-row-stack:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.admin-row-name {
-  font-weight: 700;
-  color: var(--text-dark);
+.admin-row-tight {
+  gap: 8px;
 }
 
 .admin-checkbox {
@@ -728,12 +821,35 @@ body {
   gap: 10px;
 }
 
-.admin-actions {
+.admin-grid-item {
+  position: relative;
+  border: 1px solid var(--brand-cream-deep);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-savebar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border-top: 1px solid var(--brand-cream-deep);
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding-top: 12px;
+  z-index: 6;
+  box-shadow: 0 -6px 18px rgba(31, 62, 166, 0.06);
 }
+
+.admin-saving { color: var(--text-muted); font-size: 13px; font-weight: 600; }
+.admin-dirty { color: var(--brand-red); font-size: 13px; font-weight: 600; }
+.admin-muted { color: var(--text-muted); font-size: 13px; }
 
 .admin-btn {
   background: var(--brand-blue);

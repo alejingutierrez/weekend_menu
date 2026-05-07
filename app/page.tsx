@@ -55,9 +55,9 @@ export default async function MenuPage() {
           <article key={b.name} className="item">
             <h3 className="item-name red">
               {b.name}
-              {b.icons?.map((ic, i) => (
-                <span key={i} className="item-icon" aria-hidden="true">{ic}</span>
-              ))}
+              {b.icons && (
+                <span className="item-icon" aria-hidden="true">{b.icons}</span>
+              )}
             </h3>
             <p className="item-desc">{b.desc}</p>
             <div className="price-row">

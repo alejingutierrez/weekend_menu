@@ -25,10 +25,27 @@ async function readFromBlob(): Promise<Menu | null> {
     if (!match) return null;
     const res = await fetch(match.url, { cache: "no-store" });
     if (!res.ok) return null;
-    return (await res.json()) as Menu;
+    return normalizeMenu(await res.json());
   } catch {
     return null;
   }
+}
+
+/**
+ * Backwards-compat: older blobs stored `icons` as a string array.
+ * Coerce to a single string so the new `Burger.icons` shape holds
+ * for both old and new data without a manual migration step.
+ */
+function normalizeMenu(raw: unknown): Menu {
+  const m = raw as Menu & { burgers: Array<{ icons?: string | string[] }> };
+  if (Array.isArray(m?.burgers)) {
+    for (const b of m.burgers) {
+      if (Array.isArray(b.icons)) {
+        b.icons = b.icons.join("");
+      }
+    }
+  }
+  return m as Menu;
 }
 
 async function writeToBlob(menu: Menu): Promise<void> {
@@ -43,7 +60,7 @@ async function writeToBlob(menu: Menu): Promise<void> {
 
 async function readFromFile(): Promise<Menu> {
   const raw = await fs.readFile(FILE_PATH, "utf-8");
-  return JSON.parse(raw) as Menu;
+  return normalizeMenu(JSON.parse(raw));
 }
 
 async function writeToFile(menu: Menu): Promise<void> {

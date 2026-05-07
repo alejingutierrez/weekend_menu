@@ -30,7 +30,7 @@
     },
     {
       "name": "Spicy weekend",
-      "icons": ["🌶️", "🌶️"],
+      "icons": "🌶️🌶️",
       "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, tocino, pico de gallo, mayonesa chipotle (picante)",
       "tiers": [
         { "label": "sola", "sub": "burger sola", "price": 30, "pillStyle": "blue", "labelColor": "red" },
@@ -40,7 +40,7 @@
     },
     {
       "name": "Spicy jam",
-      "icons": ["🌶️"],
+      "icons": "🌶️",
       "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, tocino, mermelada de tocino, mayonesa chipotle (picante)",
       "tiers": [
         { "label": "sola", "sub": "burger sola", "price": 31, "pillStyle": "blue", "labelColor": "red" },
@@ -50,7 +50,7 @@
     },
     {
       "name": "Veggie weekend",
-      "icons": ["🌱"],
+      "icons": "🌱",
       "desc": "Pan brioche de papa, Falafel de garbanzo, queso americano, aritos de cebolla. Escoge la salsa: (mayonesa chipotle (picante), mayonesa de perejil)",
       "tiers": [
         { "label": "sola", "sub": "burger sola", "price": 28, "pillStyle": "blue", "labelColor": "red" },
