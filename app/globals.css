@@ -436,23 +436,45 @@ body {
 }
 
 /* ===========================================================
-   Peace-hand decoration (manito de victoria from the PDF)
-   On mobile: centered, in flow, between Postres and Bebidas.
-   On desktop: anchored to the right column, overflows the
-   right edge as a brand decoration (matches PDF intent).
+   Floating peace-hand mascot — drifts organically and is
+   draggable. Positioned outside the document flow with
+   `position: fixed` so it overlays the menu. JavaScript writes
+   `transform: translate3d(...)` directly on this element.
    =========================================================== */
 
-.peace-hand-slot {
-  display: flex;
-  justify-content: center;
-  margin: -2px 0;
-  pointer-events: none;
+.peace-hand-floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 130px;
+  height: auto;
+  z-index: 10;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   color: var(--brand-blue);
+  will-change: transform;
+  filter: drop-shadow(0 6px 14px rgba(31, 62, 166, 0.18));
+  transition: filter 0.2s ease;
 }
 
-.peace-hand-slot svg {
-  width: 88px;
+.peace-hand-floating:active {
+  cursor: grabbing;
+  filter: drop-shadow(0 10px 20px rgba(31, 62, 166, 0.28));
+}
+
+.peace-hand-floating svg {
+  width: 100%;
   height: auto;
+  display: block;
+  pointer-events: none;
+}
+
+@media (max-width: 919px) {
+  .peace-hand-floating {
+    width: 96px;
+  }
 }
 
 /* ===========================================================
@@ -489,19 +511,9 @@ body {
       "burgers    tagline"
       "burgers    fries"
       "burgers    postres"
-      "burgers    peace"
       "burgers    bebidas"
       "adiciones  bebidas"
       "footer     footer";
-    grid-template-rows:
-      auto      /* hero */
-      auto      /* tagline / burgers top */
-      auto      /* fries */
-      auto      /* postres */
-      0         /* peace decoration row — collapses, hand floats */
-      auto      /* bebidas top / burgers bottom */
-      auto      /* adiciones / bebidas bottom */
-      auto;     /* footer */
     column-gap: 22px;
     row-gap: 22px;
     padding: 28px 22px max(40px, env(safe-area-inset-bottom));
@@ -516,23 +528,6 @@ body {
   [data-area="bebidas"] { grid-area: bebidas; }
   [data-area="adiciones"] { grid-area: adiciones; }
   .footer { grid-area: footer; }
-
-  /* Peace hand: occupies the (collapsed) "peace" row in the
-     right column but lifts itself up to overlap Postres and
-     Bebidas, and overflows the right edge. */
-  .peace-hand-slot {
-    grid-area: peace;
-    justify-content: flex-end;
-    align-self: end;
-    margin: 0;
-    transform: translate(28px, 22px);
-    z-index: 2;
-    overflow: visible;
-  }
-
-  .peace-hand-slot svg {
-    width: 130px;
-  }
 }
 
 /* ===========================================================
