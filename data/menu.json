@@ -1,0 +1,134 @@
+{
+  "tagline": "Aquí se viene a comer rico y ensuciarse un poco las manos.",
+  "burgers": [
+    {
+      "name": "Classic bacon",
+      "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, tocino, cebolla morada y tomate, pan brioche, salsa weekend.",
+      "tiers": [
+        { "label": "sola", "sub": "burger sola", "price": 28, "pillStyle": "blue", "labelColor": "red" },
+        { "label": "con papas", "sub": "burger + papas", "price": 32, "pillStyle": "red", "labelColor": "red" },
+        { "label": "combo", "sub": "burger+papas + bebida.", "price": 35, "pillStyle": "blue-deep", "labelColor": "blue" }
+      ]
+    },
+    {
+      "name": "Onion weekend",
+      "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, tocino, cebolla caramelizada, mayonesa de perejil.",
+      "tiers": [
+        { "label": "sola", "sub": "burger sola", "price": 30, "pillStyle": "blue", "labelColor": "red" },
+        { "label": "con papas", "sub": "burger + papas", "price": 34, "pillStyle": "red", "labelColor": "red" },
+        { "label": "combo", "sub": "burger+papas + bebida.", "price": 37, "pillStyle": "blue-deep", "labelColor": "blue" }
+      ]
+    },
+    {
+      "name": "Sweet bacon",
+      "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, mermelada de tocino, tocino, salsa de ajo.",
+      "tiers": [
+        { "label": "sola", "sub": "burger sola", "price": 30, "pillStyle": "blue", "labelColor": "red" },
+        { "label": "con papas", "sub": "burger + papas", "price": 34, "pillStyle": "red", "labelColor": "red" },
+        { "label": "combo", "sub": "burger+papas + bebida.", "price": 37, "pillStyle": "blue-deep", "labelColor": "blue" }
+      ]
+    },
+    {
+      "name": "Spicy weekend",
+      "icons": ["🌶️", "🌶️"],
+      "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, tocino, pico de gallo, mayonesa chipotle (picante)",
+      "tiers": [
+        { "label": "sola", "sub": "burger sola", "price": 30, "pillStyle": "blue", "labelColor": "red" },
+        { "label": "con papas", "sub": "burger + papas", "price": 34, "pillStyle": "red", "labelColor": "red" },
+        { "label": "combo", "sub": "burger+papas + bebida.", "price": 37, "pillStyle": "blue-deep", "labelColor": "blue" }
+      ]
+    },
+    {
+      "name": "Spicy jam",
+      "icons": ["🌶️"],
+      "desc": "Pan brioche de papa, 2 carnes smash de 70gr, doble queso americano, tocino, mermelada de tocino, mayonesa chipotle (picante)",
+      "tiers": [
+        { "label": "sola", "sub": "burger sola", "price": 31, "pillStyle": "blue", "labelColor": "red" },
+        { "label": "con papas", "sub": "burger + papas", "price": 35, "pillStyle": "red", "labelColor": "red" },
+        { "label": "combo", "sub": "burger+papas + bebida.", "price": 38, "pillStyle": "blue-deep", "labelColor": "blue" }
+      ]
+    },
+    {
+      "name": "Veggie weekend",
+      "icons": ["🌱"],
+      "desc": "Pan brioche de papa, Falafel de garbanzo, queso americano, aritos de cebolla. Escoge la salsa: (mayonesa chipotle (picante), mayonesa de perejil)",
+      "tiers": [
+        { "label": "sola", "sub": "burger sola", "price": 28, "pillStyle": "blue", "labelColor": "red" },
+        { "label": "con papas", "sub": "burger + papas", "price": 32, "pillStyle": "red", "labelColor": "red" },
+        { "label": "combo", "sub": "burger+papas + bebida.", "price": 35, "pillStyle": "blue-deep", "labelColor": "blue" }
+      ]
+    }
+  ],
+  "fries": {
+    "name": "Cheese Fries",
+    "desc": "320gr de papas a la francesa, queso cheddar y tocineta crocante.",
+    "tiers": [
+      { "label": "solas", "sub": "Solo cheese", "price": 22, "pillStyle": "red", "labelColor": "red" },
+      { "label": "combo", "sub": "cheese + bebida.", "price": 26, "pillStyle": "red", "labelColor": "red" }
+    ]
+  },
+  "postres": [
+    {
+      "name": "Brownie week",
+      "desc": "Brownie melcochudo acompañado de helado sabor a vainilla.",
+      "badge": "PRONTO"
+    },
+    {
+      "name": "Cookie week",
+      "desc": "Galleta crumbl acompañada de helado sabor a vainilla.",
+      "badge": "PRONTO"
+    }
+  ],
+  "bebidas": [
+    {
+      "title": "Sodas Italianas",
+      "suffix": "(Sin azúcar)",
+      "items": [
+        {
+          "name": "Soda frutos rojos",
+          "desc": "Bebida refrescante de frutos rojos endulzada con stevia.",
+          "price": 11
+        },
+        {
+          "name": "Soda frutos amarillos",
+          "desc": "Bebida refrescante de frutos amarillos endulzada con stevia.",
+          "price": 11
+        }
+      ]
+    },
+    {
+      "title": "Otras bebidas",
+      "items": [
+        { "name": "Coca cola (original - zero)", "price": 6 },
+        { "name": "Agua natural", "price": 5 },
+        { "name": "Agua con gas", "price": 6 },
+        { "name": "Té hatsu", "price": 7 },
+        { "name": "Soda Hatsu", "price": 6 }
+      ]
+    },
+    {
+      "title": "Cervezas",
+      "items": [
+        { "name": "Club colombia", "price": 8 },
+        { "name": "Stella Artois", "price": 10 }
+      ]
+    }
+  ],
+  "adiciones": [
+    { "name": "Porción de papas (320gr)", "price": 12 },
+    { "name": "Queso americano", "price": 3.5 },
+    { "name": "Queso cheddar", "price": 3.5 },
+    { "name": "Tocineta", "price": 4 },
+    { "name": "Tocineta crispy", "price": 4 },
+    { "name": "Pico de gallo", "price": 3.5 },
+    { "name": "Cebolla caramelizada", "price": 4 },
+    { "name": "Mermelada de tocino", "price": 5 },
+    { "name": "Cebolla crispy", "price": 3.5 },
+    { "name": "Agranda tus papas (160gr)", "price": 6 }
+  ],
+  "adicionesHighlight": {
+    "name": "Haz upgrade a tu hamburguesa",
+    "sub": "(Carne 70gr + queso)",
+    "price": 7
+  }
+}
