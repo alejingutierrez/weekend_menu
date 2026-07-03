@@ -47,7 +47,10 @@ async function readFromBlob(): Promise<LoyaltyData | null> {
     const { blobs } = await list({ prefix: BLOB_KEY, limit: 5 });
     const match = blobs.find((b) => b.pathname === BLOB_KEY);
     if (!match) return { customers: [] }; // not seeded yet → start empty
-    const res = await fetch(match.url, { cache: "no-store" });
+    // Cache-bust: Vercel Blob serves public URLs from a long-lived CDN cache,
+    // so a fixed-pathname blob would return a stale copy right after a write
+    // (a just-registered customer would 404). A unique query forces origin.
+    const res = await fetch(`${match.url}?ts=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const text = (await res.text()).trim();
     if (!text) return { customers: [] };
@@ -67,6 +70,7 @@ async function writeToBlob(data: LoyaltyData): Promise<void> {
     addRandomSuffix: false,
     contentType: "text/plain",
     allowOverwrite: true,
+    cacheControlMaxAge: 0, // don't let the CDN cache customer data
   });
 }
 

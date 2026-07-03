@@ -23,7 +23,9 @@ async function readFromBlob(): Promise<Menu | null> {
     const { blobs } = await list({ prefix: BLOB_KEY, limit: 5 });
     const match = blobs.find((b) => b.pathname === BLOB_KEY);
     if (!match) return null;
-    const res = await fetch(match.url, { cache: "no-store" });
+    // Cache-bust the long-lived Blob CDN cache so admin edits show up
+    // immediately on the public page instead of serving a stale copy.
+    const res = await fetch(`${match.url}?ts=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     return normalizeMenu(await res.json());
   } catch {
@@ -55,6 +57,7 @@ async function writeToBlob(menu: Menu): Promise<void> {
     addRandomSuffix: false,
     contentType: "application/json",
     allowOverwrite: true,
+    cacheControlMaxAge: 0, // serve fresh menu right after an admin edit
   });
 }
 
