@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
 import { JoinForm } from "./form";
+import { PeaceHand } from "@/app/peace-hand";
 
 export const metadata: Metadata = {
   title: "Weekend Club · Únete",
@@ -11,9 +12,12 @@ export const metadata: Metadata = {
 export default function JoinPage() {
   return (
     <main className="lc-shell">
+      <div className="lc-logo">
+        <h1>weekend</h1>
+        <span className="lc-logo-club">club</span>
+      </div>
       <div className="lc-card">
-        <div className="lc-brand">weekend<span>club</span></div>
-        <h1 className="lc-h1">Tu tarjeta de sellos</h1>
+        <h2 className="lc-h1">Tu tarjeta de sellos</h2>
         <p className="lc-lead">
           Cada hamburguesa suma un sello. Al llegar a{" "}
           <strong>{STAMPS_PER_REWARD}</strong>, la siguiente es{" "}
@@ -21,6 +25,8 @@ export default function JoinPage() {
         </p>
         <JoinForm />
       </div>
+      <PeaceHand />
     </main>
+
   );
 }

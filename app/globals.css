@@ -918,69 +918,239 @@ body {
 
 .lc-shell {
   min-height: 100dvh;
-  background: var(--brand-cream);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 28px 16px max(28px, env(safe-area-inset-bottom));
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
   font-family: var(--font-sora), system-ui, sans-serif;
   color: var(--text-dark);
+}
+
+/* Wordmark logo — same identity as the menu hero */
+.lc-logo {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.lc-logo h1 {
+  margin: 0;
+  background: linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-blue-deep) 100%);
+  color: var(--white);
+  font-size: clamp(30px, 10vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  text-transform: lowercase;
+  padding: 10px 26px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+.lc-logo h1::after {
+  content: "✦";
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  font-size: 18px;
+  color: var(--brand-red);
+}
+.lc-logo-club {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--brand-red);
+  padding-left: 0.3em;
 }
 
 .lc-card {
   background: var(--white);
   width: 100%;
-  max-width: 430px;
+  border: 1.5px solid var(--brand-red);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-md);
-  padding: 28px 22px 26px;
+  padding: 24px 20px 22px;
   text-align: center;
 }
 
-.lc-brand {
+.lc-hello {
+  font-size: clamp(22px, 6.5vw, 27px);
   font-weight: 800;
-  font-size: 20px;
   letter-spacing: -0.02em;
-  color: var(--brand-red);
-  text-transform: lowercase;
+  margin: 2px 0 16px;
+  color: var(--text-dark);
 }
-.lc-brand span { color: var(--brand-blue); margin-left: 4px; }
 
-.lc-h1 { font-size: 26px; font-weight: 800; margin: 14px 0 6px; letter-spacing: -0.02em; }
+.lc-reward-banner {
+  background: var(--brand-red);
+  color: var(--white);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Stamp "punch card" — the centerpiece */
+.lc-stampcard {
+  background: var(--brand-cream);
+  border: 2px dashed var(--brand-red-soft);
+  border-radius: var(--radius-md);
+  padding: 16px 16px 18px;
+  margin-bottom: 20px;
+}
+.lc-stampcard-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.lc-stampcard-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lc-stampcard-count {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--brand-red);
+  line-height: 1;
+}
+.lc-stampcard-count i { font-size: 15px; font-style: normal; color: var(--text-soft); }
+
+.lc-stamps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 9px;
+  margin-bottom: 14px;
+}
+.lc-stamp {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(15px, 5vw, 20px);
+  background: var(--white);
+  border: 2px dashed var(--brand-cream-deep);
+}
+.lc-stamp em {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.lc-stamp.on {
+  background: var(--brand-red);
+  border: 2px solid var(--brand-red);
+  box-shadow: 0 3px 8px rgba(233, 74, 74, 0.35);
+}
+
+.lc-progress {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-cream-deep);
+  overflow: hidden;
+}
+.lc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-red-soft), var(--brand-red));
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease;
+}
+.lc-progress-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 10px 0 0;
+}
+
+/* QR */
+.lc-qr { padding-top: 4px; }
+.lc-qr-frame {
+  display: inline-block;
+  background: var(--white);
+  border: 1.5px solid var(--brand-cream-deep);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.lc-qr-frame img {
+  width: 196px;
+  height: 196px;
+  max-width: 100%;
+  display: block;
+}
+.lc-code { font-size: 14px; color: var(--text-muted); margin: 12px 0 2px; }
+.lc-code strong {
+  color: var(--brand-blue);
+  letter-spacing: 0.1em;
+  font-size: 16px;
+}
+
+/* Wallet buttons */
+.lc-wallets { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.lc-wallet-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px 16px;
+  text-decoration: none;
+  border: 1.5px solid transparent;
+}
+.lc-wallet-btn.apple { background: #000; color: #fff; }
+.lc-wallet-btn.apple:hover { background: #222; }
+.lc-wallet-btn.google { background: var(--white); color: var(--text-dark); border-color: var(--brand-cream-deep); }
+.lc-wallet-btn.disabled { background: var(--brand-cream); color: var(--text-soft); cursor: default; }
+
+.lc-footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+.lc-footer .heart { color: var(--brand-red); }
+
+/* The mascot floats in the side margin on wide screens; on phones the
+   card fills the width, so hide it there to avoid covering the QR/buttons. */
+@media (max-width: 560px) {
+  .lc-shell .peace-hand-floating { display: none; }
+}
+
+/* Join form */
+.lc-h1 { font-size: clamp(24px, 7vw, 30px); font-weight: 800; margin: 4px 0 6px; letter-spacing: -0.025em; }
 .lc-lead { color: var(--text-muted); font-size: 15px; line-height: 1.5; margin: 0 0 22px; }
-.lc-hello { font-size: 19px; font-weight: 700; margin: 12px 0 16px; }
-
 .lc-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
 .lc-field { display: flex; flex-direction: column; gap: 6px; }
-.lc-field span { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.lc-field span { font-size: 13px; font-weight: 700; color: var(--text-muted); }
 .lc-field input {
   font: inherit;
   font-size: 16px; /* >=16px avoids iOS zoom-on-focus */
-  padding: 12px 14px;
+  padding: 13px 14px;
   border: 1.5px solid var(--brand-cream-deep);
   border-radius: var(--radius-md);
   background: var(--white);
   color: var(--text-dark);
 }
 .lc-field input:focus { outline: none; border-color: var(--brand-blue); }
-
 .lc-hint { font-size: 12px; color: var(--text-soft); margin: 0; }
 .lc-save-hint { margin-top: 16px; }
-
-.lc-preparing { text-align: center; padding: 36px 22px; }
-.lc-spinner {
-  width: 40px;
-  height: 40px;
-  margin: 26px auto 16px;
-  border: 4px solid var(--brand-cream-deep);
-  border-top-color: var(--brand-red);
-  border-radius: 50%;
-  animation: lc-spin 0.8s linear infinite;
-}
-@keyframes lc-spin { to { transform: rotate(360deg); } }
-.lc-preparing-text { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
 .lc-error { color: var(--brand-red); font-size: 13px; font-weight: 600; margin: 0; }
-
 .lc-btn {
   margin-top: 4px;
   background: var(--brand-red);
@@ -988,75 +1158,28 @@ body {
   border: none;
   border-radius: var(--radius-pill);
   font: inherit;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 17px;
-  padding: 14px 18px;
+  padding: 15px 18px;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
 }
 .lc-btn:hover { background: var(--brand-red-soft); }
 .lc-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.lc-reward-banner {
-  background: var(--brand-red-pale);
-  color: var(--brand-red);
-  font-weight: 700;
-  font-size: 14px;
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  margin-bottom: 18px;
-}
-
-.lc-stamps {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin: 6px 0 12px;
-}
-.lc-stamp {
-  aspect-ratio: 1;
+/* Preparing spinner */
+.lc-preparing { text-align: center; padding: 40px 22px; }
+.lc-spinner {
+  width: 42px;
+  height: 42px;
+  margin: 20px auto 16px;
+  border: 4px solid var(--brand-cream-deep);
+  border-top-color: var(--brand-red);
   border-radius: 50%;
-  border: 2px dashed var(--brand-cream-deep);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  background: var(--brand-cream);
+  animation: lc-spin 0.8s linear infinite;
 }
-.lc-stamp.on {
-  border: 2px solid var(--brand-red);
-  background: var(--brand-red-pale);
-}
-.lc-count { font-size: 14px; font-weight: 600; color: var(--text-muted); margin: 0 0 20px; }
-
-.lc-qr {
-  border-top: 1px solid var(--brand-cream-deep);
-  padding-top: 18px;
-}
-.lc-qr img {
-  width: 220px;
-  height: 220px;
-  max-width: 100%;
-  border-radius: var(--radius-md);
-}
-.lc-code { font-size: 15px; margin: 10px 0 2px; letter-spacing: 0.04em; }
-
-.lc-wallets { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
-.lc-wallet-btn {
-  display: block;
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: 15px;
-  padding: 13px 16px;
-  text-decoration: none;
-  border: 1.5px solid transparent;
-}
-.lc-wallet-btn.apple { background: #000; color: #fff; }
-.lc-wallet-btn.google { background: var(--white); color: var(--text-dark); border-color: var(--text-dark); }
-.lc-wallet-btn.disabled {
-  background: var(--brand-cream);
-  color: var(--text-soft);
-  cursor: default;
-}
+@keyframes lc-spin { to { transform: rotate(360deg); } }
+.lc-preparing-text { font-size: 18px; font-weight: 800; margin: 0 0 4px; }
 
 /* ===========================================================
    Loyalty — admin panel + stamp screen

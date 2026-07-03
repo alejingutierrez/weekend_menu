@@ -17,8 +17,11 @@ export function CardPreparing({ href }: { href: string }) {
 
   return (
     <main className="lc-shell">
+      <div className="lc-logo">
+        <h1>weekend</h1>
+        <span className="lc-logo-club">club</span>
+      </div>
       <div className="lc-card lc-preparing">
-        <div className="lc-brand">weekend<span>club</span></div>
         <div className="lc-spinner" aria-hidden="true" />
         <p className="lc-preparing-text">Preparando tu tarjeta…</p>
         <p className="lc-hint">Un momento, guardando tus datos.</p>

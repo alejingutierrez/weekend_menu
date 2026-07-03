@@ -6,6 +6,7 @@ import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
 import { getBaseUrl } from "@/lib/base-url";
 import { buildStampUrl } from "@/lib/stamp-link";
 import { CardPreparing } from "./preparing";
+import { PeaceHand } from "@/app/peace-hand";
 
 export const dynamic = "force-dynamic";
 
@@ -50,11 +51,17 @@ export default async function CardPage({
   });
 
   const slots = Array.from({ length: STAMPS_PER_REWARD }, (_, i) => i < customer.stamps);
+  const remaining = STAMPS_PER_REWARD - customer.stamps;
+  const pct = Math.round((customer.stamps / STAMPS_PER_REWARD) * 100);
 
   return (
     <main className="lc-shell">
+      <div className="lc-logo">
+        <h1>weekend</h1>
+        <span className="lc-logo-club">club</span>
+      </div>
+
       <div className="lc-card">
-        <div className="lc-brand">weekend<span>club</span></div>
         <p className="lc-hello">¡Hola, {customer.name}! 👋</p>
 
         {customer.rewardsAvailable > 0 && (
@@ -64,25 +71,40 @@ export default async function CardPage({
           </div>
         )}
 
-        <div className="lc-stamps" aria-label={`${customer.stamps} de ${STAMPS_PER_REWARD} sellos`}>
-          {slots.map((filled, i) => (
-            <span key={i} className={`lc-stamp ${filled ? "on" : ""}`}>
-              {filled ? "🍔" : ""}
+        <div className="lc-stampcard">
+          <div className="lc-stampcard-head">
+            <span className="lc-stampcard-label">Tus sellos</span>
+            <span className="lc-stampcard-count">
+              {customer.stamps}
+              <i>/{STAMPS_PER_REWARD}</i>
             </span>
-          ))}
+          </div>
+          <div className="lc-stamps" aria-label={`${customer.stamps} de ${STAMPS_PER_REWARD} sellos`}>
+            {slots.map((filled, i) => (
+              <span key={i} className={`lc-stamp${filled ? " on" : ""}`}>
+                {filled ? "🍔" : <em>{i + 1}</em>}
+              </span>
+            ))}
+          </div>
+          <div className="lc-progress">
+            <div className="lc-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="lc-progress-text">
+            {remaining > 0
+              ? `Faltan ${remaining} para tu hamburguesa gratis 🍔`
+              : "¡Tarjeta completa! 🎉"}
+          </p>
         </div>
-        <p className="lc-count">
-          {customer.stamps}/{STAMPS_PER_REWARD} sellos ·{" "}
-          {STAMPS_PER_REWARD - customer.stamps} para tu próxima gratis
-        </p>
 
         <div className="lc-qr">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt="Código para sellar" width={220} height={220} />
+          <div className="lc-qr-frame">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr} alt="Código para sellar" width={196} height={196} />
+          </div>
           <p className="lc-code">
-            Código: <strong>{customer.code}</strong>
+            Código <strong>{customer.code}</strong>
           </p>
-          <p className="lc-hint">Muestra este código en caja para que te sellen.</p>
+          <p className="lc-hint">Muéstralo en caja para que te sellen.</p>
         </div>
 
         <div className="lc-wallets">
@@ -97,10 +119,13 @@ export default async function CardPage({
             <span className="lc-wallet-btn disabled">Google Wallet · próximamente</span>
           )}
         </div>
-        <p className="lc-hint lc-save-hint">
-          Guarda esta página en tus favoritos para volver a verla.
-        </p>
       </div>
+
+      <p className="lc-footer">
+        Hecho con <span className="heart">♥</span> en Weekend Burger
+      </p>
+
+      <PeaceHand />
     </main>
   );
 }
