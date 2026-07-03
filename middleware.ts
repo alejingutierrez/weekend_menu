@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { sessionCookieName, verifySessionToken } from "@/lib/auth";
+import { createSessionCookie, sessionCookieName, verifySessionToken } from "@/lib/auth";
 
 export const config = {
   matcher: ["/admin/:path*"],
@@ -23,5 +23,9 @@ export async function middleware(req: NextRequest) {
     url.searchParams.set("from", from);
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  // Sliding session: re-issue the cookie on each visit so an active admin
+  // never gets logged out (expiry always extends from the last request).
+  const res = NextResponse.next();
+  res.cookies.set(await createSessionCookie(session.userId));
+  return res;
 }

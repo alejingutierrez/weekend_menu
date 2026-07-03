@@ -9,7 +9,7 @@
  */
 
 const SESSION_COOKIE = "weekend_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 180; // 180 days (refreshed on each visit)
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
