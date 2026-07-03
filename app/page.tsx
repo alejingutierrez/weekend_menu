@@ -145,6 +145,25 @@ export default async function MenuPage() {
         </div>
       </section>
 
+      {/* Weekend Club — loyalty registration CTA */}
+      <section className="card loyalty-cta" data-area="loyalty" aria-labelledby="loyalty-title">
+        <span className="loyalty-badge">NUEVO</span>
+        <h2 id="loyalty-title" className="card-title red">Weekend Club</h2>
+        <p className="loyalty-lead">
+          Tu tarjeta de sellos digital. Cada burger suma un sello y al llegar a{" "}
+          <strong>10</strong>, la siguiente es <strong>gratis</strong>.
+        </p>
+        <div className="loyalty-stamps-preview" aria-hidden="true">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <span key={i} className={`loyalty-dot${i < 3 ? " on" : ""}`}>
+              {i < 3 ? "🍔" : ""}
+            </span>
+          ))}
+        </div>
+        <a className="loyalty-cta-btn" href="/join">Crear mi tarjeta gratis</a>
+        <p className="loyalty-fine">Guárdala en Apple Wallet o en tu teléfono.</p>
+      </section>
+
       <footer className="footer">
         <p>Hecho con <span className="heart">♥</span> en Weekend Burger</p>
       </footer>

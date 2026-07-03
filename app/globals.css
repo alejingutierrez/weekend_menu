@@ -1164,3 +1164,63 @@ body {
 .stamp-result-title.reward { color: var(--brand-red); }
 .stamp-result-sub { color: var(--text-muted); font-size: 16px; line-height: 1.5; margin: 0 0 18px; }
 .stamp-done { margin-top: 6px; }
+
+/* ===========================================================
+   Menu → Weekend Club registration CTA
+   =========================================================== */
+
+.loyalty-cta { text-align: center; position: relative; }
+.loyalty-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: var(--brand-blue);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
+.loyalty-lead {
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 4px auto 16px;
+  max-width: 34ch;
+}
+.loyalty-stamps-preview {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.loyalty-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px dashed var(--brand-cream-deep);
+  background: var(--brand-cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+.loyalty-dot.on {
+  border: 2px solid var(--brand-red);
+  background: var(--brand-red-pale);
+}
+.loyalty-cta-btn {
+  display: inline-block;
+  background: var(--brand-red);
+  color: var(--white);
+  font-weight: 800;
+  font-size: 16px;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+}
+.loyalty-cta-btn:hover { background: var(--brand-red-soft); }
+.loyalty-fine { font-size: 12px; color: var(--text-soft); margin: 12px 0 0; }
