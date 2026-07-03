@@ -22,7 +22,7 @@ import { PKPass } from "passkit-generator";
 import { STAMPS_PER_REWARD, type Customer } from "./loyalty-types";
 import { signCustomerId, verifyCustomerToken } from "./customer-token";
 import { canvas, encodePng, fillCircle, solidPng, type RGB } from "./png";
-import { MASCOT_VIEWBOX, mascotPaths, svgToPng } from "./mascot";
+import { MASCOT_VIEWBOX, mascotMarkup, svgToPng } from "./mascot";
 
 const PASS_TYPE_ID = process.env.APPLE_PASS_TYPE_ID;
 const TEAM_ID = process.env.APPLE_TEAM_ID;
@@ -94,7 +94,6 @@ async function passImage(name: string, w: number, h: number): Promise<Buffer> {
 
 const CREAM_RGB: RGB = [242, 238, 224];
 const WHITE_RGB: RGB = [255, 255, 255];
-const CREAM_CSS = "rgb(242,238,224)";
 
 /**
  * Renders the stamp progress as an SVG "strip": each earned stamp is the
@@ -118,7 +117,7 @@ function stampStripSvg(filled: number, total: number): string {
   const handScale = (rad * 2.2) / MASCOT_VIEWBOX.h;
   const hx = MASCOT_VIEWBOX.x + MASCOT_VIEWBOX.w / 2;
   const hy = MASCOT_VIEWBOX.y + MASCOT_VIEWBOX.h / 2;
-  const hand = mascotPaths(CREAM_CSS);
+  const hand = mascotMarkup();
   let body = `<rect width="${W}" height="${H}" fill="rgb(233,74,74)"/>`;
   for (let i = 0; i < total; i++) {
     const col = i % cols;
