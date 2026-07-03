@@ -34,6 +34,15 @@ export type Fries = {
   tiers: PriceTier[];
 };
 
+/**
+ * "Hamburguesas de temporada" — a rotating seasonal section. Reuses the
+ * `Burger` shape so seasonal items render exactly like the regular menu.
+ */
+export type Temporada = {
+  name: string;
+  burgers: Burger[];
+};
+
 export type Postre = {
   name: string;
   desc: string;
@@ -67,6 +76,8 @@ export type Menu = {
   tagline: string;
   burgers: Burger[];
   fries: Fries;
+  /** Optional so menus stored before this section existed stay valid. */
+  temporada?: Temporada;
   postres: Postre[];
   bebidas: BebidaSection[];
   adiciones: Adicion[];

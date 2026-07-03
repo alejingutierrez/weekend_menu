@@ -11,11 +11,31 @@
 import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { Menu } from "./menu-types";
+import type { Menu, Temporada } from "./menu-types";
 
 const FILE_PATH = path.join(process.cwd(), "data", "menu.json");
 const BLOB_KEY = "menu.json";
 const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+
+/**
+ * Seed for the seasonal section, used to backfill menus that were stored
+ * before it existed (e.g. the production Blob). Kept in sync with the
+ * `temporada` block in `data/menu.json`.
+ */
+const DEFAULT_TEMPORADA: Temporada = {
+  name: "Hamburguesas de temporada",
+  burgers: [
+    {
+      name: "Oklahoma",
+      desc: "Pan de papa, carne smash preparada al instante con cebolla finamente picada, queso americano, tocineta y salsa de la casa.",
+      tiers: [
+        { label: "sola", sub: "burger sola", price: 30, pillStyle: "blue", labelColor: "red" },
+        { label: "con papas", sub: "burger + papas", price: 34, pillStyle: "red", labelColor: "red" },
+        { label: "combo", sub: "burger+papas + bebida.", price: 37, pillStyle: "blue-deep", labelColor: "blue" },
+      ],
+    },
+  ],
+};
 
 async function readFromBlob(): Promise<Menu | null> {
   try {
@@ -39,14 +59,30 @@ async function readFromBlob(): Promise<Menu | null> {
  * for both old and new data without a manual migration step.
  */
 function normalizeMenu(raw: unknown): Menu {
-  const m = raw as Menu & { burgers: Array<{ icons?: string | string[] }> };
-  if (Array.isArray(m?.burgers)) {
-    for (const b of m.burgers) {
-      if (Array.isArray(b.icons)) {
-        b.icons = b.icons.join("");
-      }
+  const m = raw as Menu & {
+    burgers?: Array<{ icons?: string | string[] }>;
+    temporada?: { burgers?: Array<{ icons?: string | string[] }> };
+  };
+
+  // Coerce the legacy array-of-strings `icons` to a single string.
+  const coerceIcons = (burgers?: Array<{ icons?: string | string[] }>) => {
+    if (!Array.isArray(burgers)) return;
+    for (const b of burgers) {
+      if (Array.isArray(b.icons)) b.icons = b.icons.join("");
     }
+  };
+  coerceIcons(m?.burgers);
+  coerceIcons(m?.temporada?.burgers);
+
+  // Backfill the seasonal section for menus stored before it existed.
+  // Only when the key is entirely absent — an explicit empty `burgers`
+  // array means the admin intentionally cleared it, so leave it be.
+  if (m.temporada == null) {
+    m.temporada = structuredClone(DEFAULT_TEMPORADA);
+  } else if (!Array.isArray(m.temporada.burgers)) {
+    m.temporada.burgers = [];
   }
+
   return m as Menu;
 }
 

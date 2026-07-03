@@ -23,6 +23,14 @@ const newBurger = (): Burger => ({
   tiers: NEW_BURGER_TIERS.map((t) => ({ ...t })),
 });
 
+const newSeasonalBurger = (): Burger => ({
+  name: "Nueva de temporada",
+  desc: "",
+  tiers: NEW_BURGER_TIERS.map((t) => ({ ...t })),
+});
+
+const DEFAULT_TEMPORADA_NAME = "Hamburguesas de temporada";
+
 const newPostre = (): Postre => ({ name: "Nuevo postre", desc: "" });
 
 const newBebidaItem = (): BebidaItem => ({ name: "Nueva bebida", price: 0 });
@@ -199,6 +207,54 @@ export function EditorForm({ initialMenu }: { initialMenu: Menu }) {
       },
     }));
 
+  // ---- Temporada (seasonal burgers) ----
+  const temporada = menu.temporada ?? { name: DEFAULT_TEMPORADA_NAME, burgers: [] };
+  const withTemporada = (
+    m: Menu,
+    fn: (t: NonNullable<Menu["temporada"]>) => NonNullable<Menu["temporada"]>,
+  ): Menu => ({
+    ...m,
+    temporada: fn(m.temporada ?? { name: DEFAULT_TEMPORADA_NAME, burgers: [] }),
+  });
+  const updateTemporadaName = (name: string) =>
+    setMenu((m) => withTemporada(m, (t) => ({ ...t, name })));
+  const updateSeasonalBurger = (i: number, patch: Partial<Burger>) =>
+    setMenu((m) =>
+      withTemporada(m, (t) => ({
+        ...t,
+        burgers: t.burgers.map((b, idx) => (idx === i ? { ...b, ...patch } : b)),
+      })),
+    );
+  const updateSeasonalBurgerTier = (bi: number, ti: number, price: number) =>
+    setMenu((m) =>
+      withTemporada(m, (t) => ({
+        ...t,
+        burgers: t.burgers.map((b, idx) =>
+          idx === bi
+            ? {
+                ...b,
+                tiers: b.tiers.map((tt, tidx) =>
+                  tidx === ti ? { ...tt, price } : tt,
+                ),
+              }
+            : b,
+        ),
+      })),
+    );
+  const addSeasonalBurger = () =>
+    setMenu((m) =>
+      withTemporada(m, (t) => ({ ...t, burgers: [...t.burgers, newSeasonalBurger()] })),
+    );
+  const removeSeasonalBurger = (i: number) => {
+    if (!confirmRemove(temporada.burgers[i]?.name ?? "")) return;
+    setMenu((m) =>
+      withTemporada(m, (t) => ({
+        ...t,
+        burgers: t.burgers.filter((_, idx) => idx !== i),
+      })),
+    );
+  };
+
   // ---- Highlight (upgrade row) ----
   const updateHighlight = (patch: Partial<Menu["adicionesHighlight"]>) =>
     setMenu((m) => ({
@@ -242,53 +298,11 @@ export function EditorForm({ initialMenu }: { initialMenu: Menu }) {
               title={b.name || "Sin nombre"}
               onRemove={() => removeBurger(i)}
             >
-              <Field label="Nombre">
-                <input
-                  className="admin-input"
-                  value={b.name}
-                  onChange={(e) => updateBurger(i, { name: e.target.value })}
-                />
-              </Field>
-              <Field label="Descripción">
-                <textarea
-                  className="admin-textarea"
-                  rows={3}
-                  value={b.desc}
-                  onChange={(e) => updateBurger(i, { desc: e.target.value })}
-                />
-              </Field>
-              <Field label="Iconos (emoji libres)">
-                <input
-                  className="admin-input"
-                  placeholder="ej: 🌶️🌶️ o 🌱"
-                  value={b.icons ?? ""}
-                  onChange={(e) =>
-                    updateBurger(i, {
-                      icons: e.target.value || undefined,
-                    })
-                  }
-                />
-              </Field>
-              <div className="admin-row admin-row-tight">
-                {b.tiers.map((t, j) => (
-                  <Field
-                    key={j}
-                    label={t.label || `Tier ${j + 1}`}
-                    narrow
-                  >
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      className="admin-input"
-                      value={t.price}
-                      onChange={(e) =>
-                        updateBurgerTier(i, j, Number(e.target.value))
-                      }
-                    />
-                  </Field>
-                ))}
-              </div>
+              <BurgerFields
+                burger={b}
+                onChange={(patch) => updateBurger(i, patch)}
+                onTierPrice={(j, price) => updateBurgerTier(i, j, price)}
+              />
             </ItemCard>
           ))}
           <AddButton onClick={addBurger}>+ Agregar burger</AddButton>
@@ -329,6 +343,33 @@ export function EditorForm({ initialMenu }: { initialMenu: Menu }) {
               ))}
             </div>
           </ItemCard>
+        </Section>
+
+        {/* Temporada (seasonal burgers) */}
+        <Section title="Hamburguesas de temporada">
+          <Field label="Título de la sección">
+            <input
+              className="admin-input"
+              value={temporada.name}
+              onChange={(e) => updateTemporadaName(e.target.value)}
+            />
+          </Field>
+          {temporada.burgers.map((b, i) => (
+            <ItemCard
+              key={i}
+              title={b.name || "Sin nombre"}
+              onRemove={() => removeSeasonalBurger(i)}
+            >
+              <BurgerFields
+                burger={b}
+                onChange={(patch) => updateSeasonalBurger(i, patch)}
+                onTierPrice={(j, price) => updateSeasonalBurgerTier(i, j, price)}
+              />
+            </ItemCard>
+          ))}
+          <AddButton onClick={addSeasonalBurger}>
+            + Agregar hamburguesa de temporada
+          </AddButton>
         </Section>
 
         {/* Postres */}
@@ -592,6 +633,59 @@ function AddButton({
     <button type="button" className="admin-add" onClick={onClick}>
       {children}
     </button>
+  );
+}
+
+/** Name + description + icons + price tiers — shared by Burgers and Temporada. */
+function BurgerFields({
+  burger,
+  onChange,
+  onTierPrice,
+}: {
+  burger: Burger;
+  onChange: (patch: Partial<Burger>) => void;
+  onTierPrice: (tierIndex: number, price: number) => void;
+}) {
+  return (
+    <>
+      <Field label="Nombre">
+        <input
+          className="admin-input"
+          value={burger.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+        />
+      </Field>
+      <Field label="Descripción">
+        <textarea
+          className="admin-textarea"
+          rows={3}
+          value={burger.desc}
+          onChange={(e) => onChange({ desc: e.target.value })}
+        />
+      </Field>
+      <Field label="Iconos (emoji libres)">
+        <input
+          className="admin-input"
+          placeholder="ej: 🌶️🌶️ o 🌱"
+          value={burger.icons ?? ""}
+          onChange={(e) => onChange({ icons: e.target.value || undefined })}
+        />
+      </Field>
+      <div className="admin-row admin-row-tight">
+        {burger.tiers.map((t, j) => (
+          <Field key={j} label={t.label || `Tier ${j + 1}`} narrow>
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              className="admin-input"
+              value={t.price}
+              onChange={(e) => onTierPrice(j, Number(e.target.value))}
+            />
+          </Field>
+        ))}
+      </div>
+    </>
   );
 }
 

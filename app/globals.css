@@ -325,6 +325,30 @@ body {
 }
 
 /* ===========================================================
+   Seasonal section ("Hamburguesas de temporada"). Same card
+   language as Burgers, with a small eyebrow badge above a
+   slightly smaller (phrase-length) title.
+   =========================================================== */
+
+.temporada-badge {
+  display: inline-block;
+  background: var(--brand-blue);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 10px;
+}
+
+.temporada-card .card-title {
+  font-size: clamp(30px, 9vw, 40px);
+  line-height: 1;
+}
+
+/* ===========================================================
    Subsection (used inside Bebidas)
    =========================================================== */
 
@@ -520,10 +544,25 @@ body {
     align-items: start;
   }
 
+  /* When a seasonal section is present, slot it under Fries in the
+     right column. Split out so the no-seasonal layout is unchanged. */
+  .page.has-temporada {
+    grid-template-areas:
+      "hero       hero"
+      "burgers    tagline"
+      "burgers    fries"
+      "burgers    temporada"
+      "burgers    postres"
+      "burgers    bebidas"
+      "adiciones  bebidas"
+      "footer     footer";
+  }
+
   .hero { grid-area: hero; }
   [data-area="tagline"] { grid-area: tagline; }
   [data-area="burgers"] { grid-area: burgers; }
   [data-area="fries"] { grid-area: fries; }
+  [data-area="temporada"] { grid-area: temporada; }
   [data-area="postres"] { grid-area: postres; }
   [data-area="bebidas"] { grid-area: bebidas; }
   [data-area="adiciones"] { grid-area: adiciones; }
