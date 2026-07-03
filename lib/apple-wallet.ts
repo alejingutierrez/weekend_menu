@@ -22,6 +22,7 @@ import { PKPass } from "passkit-generator";
 import { STAMPS_PER_REWARD, type Customer } from "./loyalty-types";
 import { signCustomerId, verifyCustomerToken } from "./customer-token";
 import { canvas, encodePng, fillCircle, solidPng, type RGB } from "./png";
+import { mascotPng } from "./mascot";
 
 const PASS_TYPE_ID = process.env.APPLE_PASS_TYPE_ID;
 const TEAM_ID = process.env.APPLE_TEAM_ID;
@@ -100,18 +101,24 @@ const WHITE_RGB: RGB = [255, 255, 255];
  * the Wallet pass reads like a real loyalty card.
  */
 function stampStripPng(filled: number, total: number, scale: number): Buffer {
+  // Apple aspect-fills the storeCard strip into a ~375×144 area and crops
+  // overflow, so match that height and keep generous margins.
   const W = 375 * scale;
-  const H = 123 * scale;
+  const H = 144 * scale;
   const cols = 5;
   const rows = Math.max(1, Math.ceil(total / cols));
-  const rad = 22 * scale;
+  const marginX = 34 * scale;
+  const marginY = 26 * scale;
+  const cellW = (W - marginX * 2) / cols;
+  const cellH = (H - marginY * 2) / rows;
+  const rad = Math.min(cellW, cellH) / 2 - 5 * scale;
   const ring = 3 * scale;
   const c = canvas(W, H, BRAND_RED);
   for (let i = 0; i < total; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const cx = (W / cols) * col + W / (cols * 2);
-    const cy = (H / rows) * row + H / (rows * 2);
+    const cx = marginX + cellW * (col + 0.5);
+    const cy = marginY + cellH * (row + 0.5);
     if (i < filled) {
       fillCircle(c, cx, cy, rad, CREAM_RGB);
     } else {
@@ -133,7 +140,7 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
     organizationName: "Weekend Burger",
     description: "Weekend Club",
     serialNumber: customer.id,
-    logoText: "Weekend Club",
+    logoText: "weekend",
     foregroundColor: "rgb(255,255,255)",
     backgroundColor: "rgb(233,74,74)",
     labelColor: "rgb(255,214,214)",
@@ -200,12 +207,23 @@ export async function buildPkpass(
     ? { url: `${baseUrl}/api/wallet/apple`, token: await passAuthToken(customer.id) }
     : undefined;
 
-  const [icon, icon2x, logo, logo2x] = await Promise.all([
+  const [icon, icon2x] = await Promise.all([
     passImage("icon.png", 29, 29),
     passImage("icon@2x.png", 58, 58),
-    passImage("logo.png", 160, 50),
-    passImage("logo@2x.png", 320, 100),
   ]);
+  // The peace-hand mascot as the logo (cream, shows on the red pass).
+  // Falls back to a blank (blends-in) logo if the native renderer fails,
+  // so a resvg hiccup can never break pass generation.
+  let logo: Buffer;
+  let logo2x: Buffer;
+  try {
+    logo = mascotPng(80, "rgb(242,238,224)");
+    logo2x = mascotPng(160, "rgb(242,238,224)");
+  } catch (e) {
+    console.error("[apple-wallet] mascot render failed:", e);
+    logo = solidPng(120, 40, BRAND_RED);
+    logo2x = solidPng(240, 80, BRAND_RED);
+  }
   const strip = stampStripPng(customer.stamps, STAMPS_PER_REWARD, 1);
   const strip2x = stampStripPng(customer.stamps, STAMPS_PER_REWARD, 2);
 
