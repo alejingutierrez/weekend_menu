@@ -5,6 +5,7 @@ import { getCustomer } from "@/lib/loyalty-store";
 import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
 import { getBaseUrl } from "@/lib/base-url";
 import { buildStampUrl } from "@/lib/stamp-link";
+import { CardPreparing } from "./preparing";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,23 @@ const googleReady = Boolean(
 
 export default async function CardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ r?: string }>;
 }) {
   const { id } = await params;
   const customer = await getCustomer(id);
-  if (!customer) notFound();
+  if (!customer) {
+    // Blob is eventually consistent — a just-created card may not be
+    // readable for a second or two. Show a "preparing" screen that retries
+    // a few times before giving up with a real 404.
+    const r = Number((await searchParams).r ?? 0);
+    if (Number.isFinite(r) && r < 10) {
+      return <CardPreparing href={`/card/${id}?r=${r + 1}`} />;
+    }
+    notFound();
+  }
 
   const baseUrl = await getBaseUrl();
   const stampUrl = await buildStampUrl(baseUrl, id);

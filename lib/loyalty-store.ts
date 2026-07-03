@@ -120,20 +120,6 @@ function makeCode(existing: Customer[]): string {
   return randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
-/**
- * Vercel Blob is eventually consistent: a just-written record may not be
- * visible on an immediate re-read, which made the /join → /card redirect
- * 404. Poll (bounded) until the new record is readable before proceeding.
- */
-async function awaitReadable(id: string): Promise<void> {
-  if (!BLOB_TOKEN) return; // local file backend is immediately consistent
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const data = await readFromBlob();
-    if (data?.customers.some((c) => c.id === id)) return;
-    await new Promise((resolve) => setTimeout(resolve, 400));
-  }
-}
-
 /** Propagates a change to the customer's wallet passes; never throws. */
 async function syncWalletsBestEffort(customer: Customer): Promise<void> {
   try {
@@ -187,8 +173,6 @@ export async function createCustomer(input: {
   };
   data.customers.push(customer);
   await writeLoyalty(data);
-  // Ensure the record is queryable before the caller redirects to /card.
-  await awaitReadable(customer.id);
   return customer;
 }
 
