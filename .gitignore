@@ -32,6 +32,14 @@ yarn-error.log*
 .env*.local
 .env
 
+# loyalty — local dev store holds customer PII, never commit
+/data/customers.json
+
+# wallet certificates / keys (secrets)
+/certs
+*.p12
+*.p8
+
 # vercel
 .vercel
 

@@ -911,3 +911,256 @@ body {
   }
   html { scroll-behavior: auto; }
 }
+
+/* ===========================================================
+   Loyalty — public card + join (Weekend Club)
+   =========================================================== */
+
+.lc-shell {
+  min-height: 100dvh;
+  background: var(--brand-cream);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 16px max(28px, env(safe-area-inset-bottom));
+  font-family: var(--font-sora), system-ui, sans-serif;
+  color: var(--text-dark);
+}
+
+.lc-card {
+  background: var(--white);
+  width: 100%;
+  max-width: 430px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-md);
+  padding: 28px 22px 26px;
+  text-align: center;
+}
+
+.lc-brand {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--brand-red);
+  text-transform: lowercase;
+}
+.lc-brand span { color: var(--brand-blue); margin-left: 4px; }
+
+.lc-h1 { font-size: 26px; font-weight: 800; margin: 14px 0 6px; letter-spacing: -0.02em; }
+.lc-lead { color: var(--text-muted); font-size: 15px; line-height: 1.5; margin: 0 0 22px; }
+.lc-hello { font-size: 19px; font-weight: 700; margin: 12px 0 16px; }
+
+.lc-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.lc-field { display: flex; flex-direction: column; gap: 6px; }
+.lc-field span { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.lc-field input {
+  font: inherit;
+  font-size: 16px; /* >=16px avoids iOS zoom-on-focus */
+  padding: 12px 14px;
+  border: 1.5px solid var(--brand-cream-deep);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--text-dark);
+}
+.lc-field input:focus { outline: none; border-color: var(--brand-blue); }
+
+.lc-hint { font-size: 12px; color: var(--text-soft); margin: 0; }
+.lc-save-hint { margin-top: 16px; }
+.lc-error { color: var(--brand-red); font-size: 13px; font-weight: 600; margin: 0; }
+
+.lc-btn {
+  margin-top: 4px;
+  background: var(--brand-red);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-weight: 700;
+  font-size: 17px;
+  padding: 14px 18px;
+  cursor: pointer;
+}
+.lc-btn:hover { background: var(--brand-red-soft); }
+.lc-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.lc-reward-banner {
+  background: var(--brand-red-pale);
+  color: var(--brand-red);
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+}
+
+.lc-stamps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 6px 0 12px;
+}
+.lc-stamp {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px dashed var(--brand-cream-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: var(--brand-cream);
+}
+.lc-stamp.on {
+  border: 2px solid var(--brand-red);
+  background: var(--brand-red-pale);
+}
+.lc-count { font-size: 14px; font-weight: 600; color: var(--text-muted); margin: 0 0 20px; }
+
+.lc-qr {
+  border-top: 1px solid var(--brand-cream-deep);
+  padding-top: 18px;
+}
+.lc-qr img {
+  width: 220px;
+  height: 220px;
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}
+.lc-code { font-size: 15px; margin: 10px 0 2px; letter-spacing: 0.04em; }
+
+.lc-wallets { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.lc-wallet-btn {
+  display: block;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 13px 16px;
+  text-decoration: none;
+  border: 1.5px solid transparent;
+}
+.lc-wallet-btn.apple { background: #000; color: #fff; }
+.lc-wallet-btn.google { background: var(--white); color: var(--text-dark); border-color: var(--text-dark); }
+.lc-wallet-btn.disabled {
+  background: var(--brand-cream);
+  color: var(--text-soft);
+  cursor: default;
+}
+
+/* ===========================================================
+   Loyalty — admin panel + stamp screen
+   =========================================================== */
+
+.admin-nav {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.admin-nav a { color: var(--brand-blue); text-decoration: none; }
+.admin-nav a:hover { text-decoration: underline; }
+.admin-nav-current { color: var(--text-muted); }
+
+.lyl-stats { display: flex; gap: 10px; margin: 18px 0; }
+.lyl-stat {
+  flex: 1;
+  background: var(--brand-cream);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  text-align: center;
+}
+.lyl-stat-num { display: block; font-size: 24px; font-weight: 800; color: var(--brand-blue); }
+.lyl-stat-label { font-size: 12px; color: var(--text-muted); }
+
+.lyl-join { margin-bottom: 18px; }
+.lyl-join summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--brand-blue); }
+.lyl-join-body { padding-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.lyl-join-body img { border-radius: var(--radius-md); }
+.lyl-join-body code { font-size: 12px; word-break: break-all; }
+
+.lyl-search {
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--brand-cream-deep);
+  border-radius: var(--radius-md);
+  margin-bottom: 14px;
+}
+.lyl-search:focus { outline: none; border-color: var(--brand-blue); }
+
+.lyl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.lyl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border: 1px solid var(--brand-cream-deep);
+  border-radius: var(--radius-md);
+}
+.lyl-row-main { display: flex; flex-direction: column; gap: 2px; flex: 1 1 150px; min-width: 0; }
+.lyl-name { font-weight: 700; font-size: 15px; }
+.lyl-code {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--brand-red);
+}
+.lyl-contact { font-size: 12px; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; }
+
+.lyl-row-stats { display: flex; align-items: center; gap: 8px; }
+.lyl-stamps-count { font-weight: 800; font-size: 16px; color: var(--brand-blue); }
+.lyl-reward-badge {
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--brand-red-pale);
+  color: var(--brand-red);
+  border-radius: var(--radius-pill);
+  padding: 4px 8px;
+}
+
+.lyl-row-actions { display: flex; gap: 8px; }
+.lyl-row-actions form { margin: 0; }
+.lyl-btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+.lyl-btn.primary { background: var(--brand-red); color: var(--white); }
+.lyl-btn.primary:hover { background: var(--brand-red-soft); }
+.lyl-btn.ghost { background: transparent; border-color: var(--brand-blue); color: var(--brand-blue); }
+.lyl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Stamp confirmation (scan target) — big, thumb-friendly */
+.stamp-card { text-align: center; }
+.stamp-confirm { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.stamp-customer { font-size: 24px; font-weight: 800; margin: 8px 0 0; }
+.stamp-progress { font-size: 16px; color: var(--text-muted); margin: 0 0 8px; }
+.stamp-big-btn {
+  width: 100%;
+  background: var(--brand-red);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 800;
+  font-size: 20px;
+  padding: 22px 18px;
+  cursor: pointer;
+}
+.stamp-big-btn:hover { background: var(--brand-red-soft); }
+.stamp-big-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.stamp-result { text-align: center; padding: 12px 0; }
+.stamp-result-emoji { font-size: 52px; line-height: 1; }
+.stamp-result-title { font-size: 26px; font-weight: 800; margin: 10px 0 4px; }
+.stamp-result-title.reward { color: var(--brand-red); }
+.stamp-result-sub { color: var(--text-muted); font-size: 16px; line-height: 1.5; margin: 0 0 18px; }
+.stamp-done { margin-top: 6px; }

@@ -12,6 +12,10 @@ export default async function AdminPage() {
   const menu = await readMenu();
   return (
     <main className="admin-shell admin-shell-wide">
+      <nav className="admin-nav">
+        <span className="admin-nav-current">Editor de menú</span>
+        <a href="/admin/loyalty">Fidelidad →</a>
+      </nav>
       <EditorForm initialMenu={menu} />
     </main>
   );
