@@ -67,6 +67,20 @@
       { "label": "combo", "sub": "cheese + bebida.", "price": 26, "pillStyle": "red", "labelColor": "red" }
     ]
   },
+  "temporada": {
+    "name": "Hamburguesas de temporada",
+    "burgers": [
+      {
+        "name": "Oklahoma",
+        "desc": "Pan de papa, carne smash preparada al instante con cebolla finamente picada, queso americano, tocineta y salsa de la casa.",
+        "tiers": [
+          { "label": "sola", "sub": "burger sola", "price": 30, "pillStyle": "blue", "labelColor": "red" },
+          { "label": "con papas", "sub": "burger + papas", "price": 34, "pillStyle": "red", "labelColor": "red" },
+          { "label": "combo", "sub": "burger+papas + bebida.", "price": 37, "pillStyle": "blue-deep", "labelColor": "blue" }
+        ]
+      }
+    ]
+  },
   "postres": [
     {
       "name": "Brownie week",

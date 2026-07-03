@@ -89,24 +89,37 @@ function validateMenu(input: unknown): ValidationResult {
     };
   };
 
+  const burgerOf = (b: unknown): Menu["burgers"][number] => {
+    const o = isObj(b) ? b : {};
+    const tiers = Array.isArray(o.tiers) ? o.tiers.map(tier) : [];
+    const icons =
+      typeof o.icons === "string"
+        ? o.icons
+        : Array.isArray(o.icons)
+          ? (o.icons as unknown[]).map(String).join("")
+          : undefined;
+    return {
+      name: asString(o.name, "Burger"),
+      desc: asString(o.desc),
+      ...(icons ? { icons } : {}),
+      tiers,
+    };
+  };
+
+  // Seasonal section is optional; persist it (even empty) whenever the
+  // client sends an object, so a cleared section isn't re-seeded on read.
+  const temporada = isObj(input.temporada)
+    ? {
+        name: asString(input.temporada.name, "Hamburguesas de temporada"),
+        burgers: Array.isArray(input.temporada.burgers)
+          ? input.temporada.burgers.map(burgerOf)
+          : [],
+      }
+    : undefined;
+
   const menu: Menu = {
     tagline: input.tagline,
-    burgers: input.burgers.map((b) => {
-      const o = isObj(b) ? b : {};
-      const tiers = Array.isArray(o.tiers) ? o.tiers.map(tier) : [];
-      const icons =
-        typeof o.icons === "string"
-          ? o.icons
-          : Array.isArray(o.icons)
-            ? (o.icons as unknown[]).map(String).join("")
-            : undefined;
-      return {
-        name: asString(o.name, "Burger"),
-        desc: asString(o.desc),
-        ...(icons ? { icons } : {}),
-        tiers,
-      };
-    }),
+    burgers: input.burgers.map(burgerOf),
     fries: {
       name: asString((input.fries as Record<string, unknown>).name, "Fries"),
       desc: asString((input.fries as Record<string, unknown>).desc),
@@ -114,6 +127,7 @@ function validateMenu(input: unknown): ValidationResult {
         ? ((input.fries as Record<string, unknown>).tiers as unknown[]).map(tier)
         : [],
     },
+    ...(temporada ? { temporada } : {}),
     postres: input.postres.map((p) => {
       const o = isObj(p) ? p : {};
       const out: Menu["postres"][number] = {

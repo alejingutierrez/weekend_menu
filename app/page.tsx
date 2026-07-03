@@ -33,8 +33,10 @@ function PriceCell({ tier }: { tier: PriceTier }) {
 
 export default async function MenuPage() {
   const menu = await readMenu();
+  const seasonal = menu.temporada;
+  const showSeasonal = Boolean(seasonal && seasonal.burgers.length > 0);
   return (
-    <main className="page">
+    <main className={`page${showSeasonal ? " has-temporada" : ""}`}>
       {/* Hero */}
       <header className="hero">
         <div className="hero-logo">
@@ -82,6 +84,36 @@ export default async function MenuPage() {
           </div>
         </article>
       </section>
+
+      {/* Hamburguesas de temporada */}
+      {seasonal && seasonal.burgers.length > 0 && (
+        <section
+          className="card temporada-card"
+          data-area="temporada"
+          aria-labelledby="temporada-title"
+        >
+          <span className="temporada-badge">Nuevo</span>
+          <h2 id="temporada-title" className="card-title red">
+            {seasonal.name}
+          </h2>
+          {seasonal.burgers.map((b) => (
+            <article key={b.name} className="item">
+              <h3 className="item-name red">
+                {b.name}
+                {b.icons && (
+                  <span className="item-icon" aria-hidden="true">{b.icons}</span>
+                )}
+              </h3>
+              <p className="item-desc">{b.desc}</p>
+              <div className="price-row">
+                {b.tiers.map((t) => (
+                  <PriceCell key={t.label} tier={t} />
+                ))}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       {/* Postres */}
       <section className="card" data-area="postres" aria-labelledby="postres-title">
