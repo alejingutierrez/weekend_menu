@@ -1190,10 +1190,10 @@ body {
   max-width: 34ch;
 }
 .loyalty-stamps-preview {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 34px);
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 18px;
 }
 .loyalty-dot {

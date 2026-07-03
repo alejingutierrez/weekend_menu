@@ -13,9 +13,14 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(sessionCookieName)?.value;
   const session = await verifySessionToken(token);
   if (!session) {
+    // Preserve the full path + query (e.g. /admin/stamp?c=…&t=…) so that
+    // scanning a pass QR while logged out lands back on the stamp screen
+    // for that exact customer after login.
+    const from = req.nextUrl.pathname + req.nextUrl.search;
     const url = req.nextUrl.clone();
     url.pathname = "/admin/login";
-    url.searchParams.set("from", req.nextUrl.pathname);
+    url.search = "";
+    url.searchParams.set("from", from);
     return NextResponse.redirect(url);
   }
   return NextResponse.next();
