@@ -21,7 +21,7 @@ import forge from "node-forge";
 import { PKPass } from "passkit-generator";
 import { STAMPS_PER_REWARD, type Customer } from "./loyalty-types";
 import { signCustomerId, verifyCustomerToken } from "./customer-token";
-import { solidPng } from "./png";
+import { canvas, encodePng, fillCircle, solidPng, type RGB } from "./png";
 
 const PASS_TYPE_ID = process.env.APPLE_PASS_TYPE_ID;
 const TEAM_ID = process.env.APPLE_TEAM_ID;
@@ -91,6 +91,37 @@ async function passImage(name: string, w: number, h: number): Promise<Buffer> {
   }
 }
 
+const CREAM_RGB: RGB = [242, 238, 224];
+const WHITE_RGB: RGB = [255, 255, 255];
+
+/**
+ * Renders the stamp progress as the pass "strip" image — a 5×2 punch card
+ * on the brand-red background (filled = cream circle, pending = ring), so
+ * the Wallet pass reads like a real loyalty card.
+ */
+function stampStripPng(filled: number, total: number, scale: number): Buffer {
+  const W = 375 * scale;
+  const H = 123 * scale;
+  const cols = 5;
+  const rows = Math.max(1, Math.ceil(total / cols));
+  const rad = 22 * scale;
+  const ring = 3 * scale;
+  const c = canvas(W, H, BRAND_RED);
+  for (let i = 0; i < total; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = (W / cols) * col + W / (cols * 2);
+    const cy = (H / rows) * row + H / (rows * 2);
+    if (i < filled) {
+      fillCircle(c, cx, cy, rad, CREAM_RGB);
+    } else {
+      fillCircle(c, cx, cy, rad, WHITE_RGB);
+      fillCircle(c, cx, cy, rad - ring, BRAND_RED);
+    }
+  }
+  return encodePng(c);
+}
+
 function passJson(customer: Customer, stampUrl: string, webService?: {
   url: string;
   token: string;
@@ -105,7 +136,7 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
     logoText: "Weekend Club",
     foregroundColor: "rgb(255,255,255)",
     backgroundColor: "rgb(233,74,74)",
-    labelColor: "rgb(255,255,255)",
+    labelColor: "rgb(255,214,214)",
     barcodes: [
       {
         format: "PKBarcodeFormatQR",
@@ -115,19 +146,30 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
       },
     ],
     storeCard: {
+      // The strip image shows the stamps; keep the fields light around it.
       headerFields: [
-        { key: "reward", label: "PREMIOS", value: String(customer.rewardsAvailable) },
+        { key: "count", label: "SELLOS", value: `${customer.stamps}/${STAMPS_PER_REWARD}` },
       ],
-      primaryFields: [
-        { key: "stamps", label: "SELLOS", value: `${customer.stamps}/${STAMPS_PER_REWARD}` },
+      secondaryFields: [
+        { key: "name", label: "SOCIO", value: customer.name },
+        { key: "reward", label: "GRATIS", value: String(customer.rewardsAvailable) },
       ],
-      secondaryFields: [{ key: "name", label: "SOCIO", value: customer.name }],
-      auxiliaryFields: [{ key: "code", label: "CÓDIGO", value: customer.code }],
+      auxiliaryFields: [
+        { key: "code", label: "CÓDIGO", value: customer.code },
+        {
+          key: "meta",
+          label: "META",
+          value:
+            customer.stamps >= STAMPS_PER_REWARD || STAMPS_PER_REWARD - customer.stamps === 0
+              ? "¡Completa!"
+              : `${STAMPS_PER_REWARD - customer.stamps} para tu premio`,
+        },
+      ],
       backFields: [
         {
           key: "info",
           label: "Cómo funciona",
-          value: `Junta ${STAMPS_PER_REWARD} sellos y llévate una hamburguesa gratis. Muestra este código en caja para sellar.`,
+          value: `Junta ${STAMPS_PER_REWARD} sellos y llévate una hamburguesa gratis. Muestra el código de esta tarjeta en caja para que te sellen.`,
         },
       ],
     },
@@ -164,6 +206,8 @@ export async function buildPkpass(
     passImage("logo.png", 160, 50),
     passImage("logo@2x.png", 320, 100),
   ]);
+  const strip = stampStripPng(customer.stamps, STAMPS_PER_REWARD, 1);
+  const strip2x = stampStripPng(customer.stamps, STAMPS_PER_REWARD, 2);
 
   const pass = new PKPass(
     {
@@ -172,6 +216,8 @@ export async function buildPkpass(
       "icon@2x.png": icon2x,
       "logo.png": logo,
       "logo@2x.png": logo2x,
+      "strip.png": strip,
+      "strip@2x.png": strip2x,
     },
     {
       wwdr,

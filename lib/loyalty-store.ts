@@ -151,12 +151,44 @@ export async function listCustomers(): Promise<Customer[]> {
   );
 }
 
+function normEmail(e?: string): string {
+  return (e ?? "").trim().toLowerCase();
+}
+function normPhone(p?: string): string {
+  return (p ?? "").replace(/\D/g, "");
+}
+
+/** Finds an existing customer by (normalized) email or phone. */
+export async function findByContact(
+  email?: string,
+  phone?: string,
+): Promise<Customer | null> {
+  const e = normEmail(email);
+  const p = normPhone(phone);
+  if (!e && !p) return null;
+  const data = await readLoyalty();
+  return (
+    data.customers.find(
+      (c) => (e && normEmail(c.email) === e) || (p && normPhone(c.phone) === p),
+    ) ?? null
+  );
+}
+
 export async function createCustomer(input: {
   name: string;
   email?: string;
   phone?: string;
 }): Promise<Customer> {
   const data = await readLoyalty();
+  // Dedup: reuse an existing card with the same email/phone so a customer
+  // never ends up with several cards.
+  const email = normEmail(input.email);
+  const phone = normPhone(input.phone);
+  const existing = data.customers.find(
+    (c) => (email && normEmail(c.email) === email) || (phone && normPhone(c.phone) === phone),
+  );
+  if (existing) return existing;
+
   const now = new Date().toISOString();
   const customer: Customer = {
     id: randomUUID(),
@@ -217,6 +249,19 @@ export async function redeemReward(id: string): Promise<Customer | null> {
   await writeLoyalty(data);
   await syncWalletsBestEffort(customer);
   return customer;
+}
+
+/** Permanently deletes a customer and their device registrations. */
+export async function deleteCustomer(id: string): Promise<boolean> {
+  const data = await readLoyalty();
+  const before = data.customers.length;
+  data.customers = data.customers.filter((c) => c.id !== id);
+  if (data.customers.length === before) return false;
+  if (data.appleRegistrations?.length) {
+    data.appleRegistrations = data.appleRegistrations.filter((r) => r.serial !== id);
+  }
+  await writeLoyalty(data);
+  return true;
 }
 
 /* ---------- Apple device registrations (push updates) ---------- */

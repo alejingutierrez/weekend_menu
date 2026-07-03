@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { Customer } from "@/lib/loyalty-types";
 import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
-import { addStampAction, redeemRewardAction } from "./actions";
+import { addStampAction, deleteCustomerAction, redeemRewardAction } from "./actions";
 
 function SubmitButton({
   className,
@@ -21,6 +21,13 @@ function SubmitButton({
       {pending ? "…" : children}
     </button>
   );
+}
+
+/** ISO → "DD/MM" without locale/timezone (avoids hydration drift). */
+function shortDate(iso?: string): string {
+  if (!iso) return "—";
+  const [, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}`;
 }
 
 export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
@@ -57,23 +64,34 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
         <ul className="lyl-list">
           {filtered.map((c) => (
             <li key={c.id} className="lyl-row">
-              <div className="lyl-row-main">
-                <span className="lyl-name">{c.name}</span>
-                <span className="lyl-code">{c.code}</span>
-                {(c.email || c.phone) && (
-                  <span className="lyl-contact">{c.email || c.phone}</span>
-                )}
+              <div className="lyl-row-top">
+                <div className="lyl-id">
+                  <span className="lyl-name">{c.name}</span>
+                  <span className="lyl-code">{c.code}</span>
+                  {c.rewardsAvailable > 0 && (
+                    <span className="lyl-reward-badge">
+                      🍔 {c.rewardsAvailable} gratis
+                    </span>
+                  )}
+                </div>
+                <div className="lyl-stamps-mini" aria-hidden="true">
+                  {Array.from({ length: STAMPS_PER_REWARD }, (_, i) => (
+                    <span key={i} className={`lyl-dot${i < c.stamps ? " on" : ""}`} />
+                  ))}
+                </div>
               </div>
-              <div className="lyl-row-stats">
-                <span className="lyl-stamps-count">
-                  {c.stamps}/{STAMPS_PER_REWARD}
+
+              <div className="lyl-row-meta">
+                <span className="lyl-metaitem strong">
+                  {c.stamps}/{STAMPS_PER_REWARD} sellos
                 </span>
-                {c.rewardsAvailable > 0 && (
-                  <span className="lyl-reward-badge">
-                    🍔 {c.rewardsAvailable} gratis
-                  </span>
+                {(c.email || c.phone) && (
+                  <span className="lyl-metaitem">{c.email || c.phone}</span>
                 )}
+                <span className="lyl-metaitem">Últ. visita {shortDate(c.lastStampAt)}</span>
+                <span className="lyl-metaitem">Total {c.totalStamps}</span>
               </div>
+
               <div className="lyl-row-actions">
                 <form action={addStampAction}>
                   <input type="hidden" name="id" value={c.id} />
@@ -81,12 +99,24 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
                 </form>
                 <form action={redeemRewardAction}>
                   <input type="hidden" name="id" value={c.id} />
-                  <SubmitButton
-                    className="lyl-btn ghost"
-                    disabled={c.rewardsAvailable <= 0}
-                  >
+                  <SubmitButton className="lyl-btn ghost" disabled={c.rewardsAvailable <= 0}>
                     Canjear
                   </SubmitButton>
+                </form>
+                <form
+                  action={deleteCustomerAction}
+                  onSubmit={(e) => {
+                    if (
+                      !window.confirm(
+                        `¿Borrar a ${c.name}? Se elimina su tarjeta y sellos. No se puede deshacer.`,
+                      )
+                    ) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <input type="hidden" name="id" value={c.id} />
+                  <SubmitButton className="lyl-btn danger">Borrar</SubmitButton>
                 </form>
               </div>
             </li>
