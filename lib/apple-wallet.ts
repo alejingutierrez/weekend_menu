@@ -1,17 +1,17 @@
 /**
  * Apple Wallet (.pkpass) generation for the loyalty store card.
  *
- * Builds a signed storeCard pass: stamp count in the primary field, the
- * stamp QR as the barcode, and (when APNs is configured) a webServiceURL
- * + authenticationToken so the pass updates live on the device.
+ * Builds a signed storeCard pass: the Weekend wordmark as the logo text, the
+ * stamps rendered as the mascot hand on the strip image, the stamp QR as
+ * the barcode, and (when APNs is configured) a webServiceURL +
+ * authenticationToken so the pass updates live on the device.
  *
  * Certificates come from env as base64 (see SETUP-WALLET.md):
  *  - APPLE_PASS_CERT / APPLE_PASS_CERT_PASSWORD  → the Pass Type ID .p12
  *  - APPLE_WWDR_CERT                             → Apple WWDR intermediate (PEM)
  *
- * Placeholder icon/logo images are generated as solid brand-color PNGs;
- * drop real art in `assets/pass/` (icon.png, icon@2x.png, logo.png,
- * logo@2x.png) to override.
+ * Placeholder icon images are generated as solid brand-color PNGs; drop
+ * real art in `assets/pass/` (icon.png, icon@2x.png) to override.
  */
 
 import "server-only";
@@ -22,7 +22,7 @@ import { PKPass } from "passkit-generator";
 import { STAMPS_PER_REWARD, type Customer } from "./loyalty-types";
 import { signCustomerId, verifyCustomerToken } from "./customer-token";
 import { canvas, encodePng, fillCircle, solidPng, type RGB } from "./png";
-import { mascotPng } from "./mascot";
+import { MASCOT_VIEWBOX, mascotPaths, svgToPng } from "./mascot";
 
 const PASS_TYPE_ID = process.env.APPLE_PASS_TYPE_ID;
 const TEAM_ID = process.env.APPLE_TEAM_ID;
@@ -94,15 +94,58 @@ async function passImage(name: string, w: number, h: number): Promise<Buffer> {
 
 const CREAM_RGB: RGB = [242, 238, 224];
 const WHITE_RGB: RGB = [255, 255, 255];
+const CREAM_CSS = "rgb(242,238,224)";
 
 /**
- * Renders the stamp progress as the pass "strip" image — a 5×2 punch card
- * on the brand-red background (filled = cream circle, pending = ring), so
- * the Wallet pass reads like a real loyalty card.
+ * Renders the stamp progress as an SVG "strip": each earned stamp is the
+ * mascot hand (cream, sized to fill its cell), each pending one a light
+ * ring — so the Wallet pass reads like a stamp card with the mascot as the
+ * stamp itself. Laid out as a 5-column grid on the brand-red background.
  */
-function stampStripPng(filled: number, total: number, scale: number): Buffer {
+function stampStripSvg(filled: number, total: number): string {
   // Apple aspect-fills the storeCard strip into a ~375×144 area and crops
   // overflow, so match that height and keep generous margins.
+  const W = 375;
+  const H = 144;
+  const cols = 5;
+  const rows = Math.max(1, Math.ceil(total / cols));
+  const marginX = 34;
+  const marginY = 26;
+  const cellW = (W - marginX * 2) / cols;
+  const cellH = (H - marginY * 2) / rows;
+  const rad = Math.min(cellW, cellH) / 2 - 5;
+  // "Manito suelta": hand ~1.1× the empty-slot diameter, no disc behind it.
+  const handScale = (rad * 2.2) / MASCOT_VIEWBOX.h;
+  const hx = MASCOT_VIEWBOX.x + MASCOT_VIEWBOX.w / 2;
+  const hy = MASCOT_VIEWBOX.y + MASCOT_VIEWBOX.h / 2;
+  const hand = mascotPaths(CREAM_CSS);
+  let body = `<rect width="${W}" height="${H}" fill="rgb(233,74,74)"/>`;
+  for (let i = 0; i < total; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = marginX + cellW * (col + 0.5);
+    const cy = marginY + cellH * (row + 0.5);
+    if (i < filled) {
+      body += `<g transform="translate(${cx},${cy}) scale(${handScale}) translate(${-hx},${-hy})">${hand}</g>`;
+    } else {
+      body += `<circle cx="${cx}" cy="${cy}" r="${rad}" fill="none" stroke="rgb(255,255,255)" stroke-opacity="0.5" stroke-width="3"/>`;
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">${body}</svg>`;
+}
+
+/** Strip renderer (SVG→PNG) with a dot-based fallback if resvg ever fails. */
+function renderStrip(filled: number, total: number, widthPx: number): Buffer {
+  try {
+    return svgToPng(stampStripSvg(filled, total), widthPx);
+  } catch (e) {
+    console.error("[apple-wallet] strip render failed, using fallback:", e);
+    return stampStripFallbackPng(filled, total, widthPx >= 700 ? 2 : 1);
+  }
+}
+
+/** Fallback strip: plain cream dots (filled) / rings (pending), no mascot. */
+function stampStripFallbackPng(filled: number, total: number, scale: number): Buffer {
   const W = 375 * scale;
   const H = 144 * scale;
   const cols = 5;
@@ -133,6 +176,7 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
   url: string;
   token: string;
 }) {
+  const remaining = Math.max(0, STAMPS_PER_REWARD - customer.stamps);
   const json: Record<string, unknown> = {
     formatVersion: 1,
     passTypeIdentifier: PASS_TYPE_ID,
@@ -140,6 +184,8 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
     organizationName: "Weekend Burger",
     description: "Weekend Club",
     serialNumber: customer.id,
+    // The Weekend wordmark stays at the top; the mascot now lives in the
+    // stamps, so it's dropped from up here (no logo image) to avoid redundancy.
     logoText: "weekend",
     foregroundColor: "rgb(255,255,255)",
     backgroundColor: "rgb(233,74,74)",
@@ -153,24 +199,15 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
       },
     ],
     storeCard: {
-      // The strip image shows the stamps; keep the fields light around it.
-      headerFields: [
-        { key: "count", label: "SELLOS", value: `${customer.stamps}/${STAMPS_PER_REWARD}` },
-      ],
+      // The strip shows the stamps; keep the fields light around it. The top
+      // is the Weekend wordmark, so the member name goes here.
       secondaryFields: [
         { key: "name", label: "SOCIO", value: customer.name },
         { key: "reward", label: "GRATIS", value: String(customer.rewardsAvailable) },
       ],
       auxiliaryFields: [
         { key: "code", label: "CÓDIGO", value: customer.code },
-        {
-          key: "meta",
-          label: "META",
-          value:
-            customer.stamps >= STAMPS_PER_REWARD || STAMPS_PER_REWARD - customer.stamps === 0
-              ? "¡Completa!"
-              : `${STAMPS_PER_REWARD - customer.stamps} para tu premio`,
-        },
+        { key: "left", label: "FALTAN", value: remaining === 0 ? "¡Listo!" : String(remaining) },
       ],
       backFields: [
         {
@@ -211,29 +248,17 @@ export async function buildPkpass(
     passImage("icon.png", 29, 29),
     passImage("icon@2x.png", 58, 58),
   ]);
-  // The peace-hand mascot as the logo (cream, shows on the red pass).
-  // Falls back to a blank (blends-in) logo if the native renderer fails,
-  // so a resvg hiccup can never break pass generation.
-  let logo: Buffer;
-  let logo2x: Buffer;
-  try {
-    logo = mascotPng(80, "rgb(242,238,224)");
-    logo2x = mascotPng(160, "rgb(242,238,224)");
-  } catch (e) {
-    console.error("[apple-wallet] mascot render failed:", e);
-    logo = solidPng(120, 40, BRAND_RED);
-    logo2x = solidPng(240, 80, BRAND_RED);
-  }
-  const strip = stampStripPng(customer.stamps, STAMPS_PER_REWARD, 1);
-  const strip2x = stampStripPng(customer.stamps, STAMPS_PER_REWARD, 2);
+  // The mascot now lives in the stamps (strip), not as a top logo, so the
+  // pass header shows only the member name (logoText). renderStrip falls
+  // back to plain dots if resvg ever fails, so it can't break generation.
+  const strip = renderStrip(customer.stamps, STAMPS_PER_REWARD, 375);
+  const strip2x = renderStrip(customer.stamps, STAMPS_PER_REWARD, 750);
 
   const pass = new PKPass(
     {
       "pass.json": Buffer.from(JSON.stringify(passJson(customer, stampUrl, webService))),
       "icon.png": icon,
       "icon@2x.png": icon2x,
-      "logo.png": logo,
-      "logo@2x.png": logo2x,
       "strip.png": strip,
       "strip@2x.png": strip2x,
     },

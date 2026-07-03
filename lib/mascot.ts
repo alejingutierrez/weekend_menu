@@ -14,14 +14,28 @@ const PATHS = [
   "M 1395.734375 1329.6875 C 1382.578125 1329.6875 1377.699219 1320.898438 1377.46875 1320.46875 C 1376.171875 1318.039062 1377.085938 1315.019531 1379.511719 1313.722656 C 1381.90625 1312.4375 1384.878906 1313.316406 1386.207031 1315.675781 C 1386.605469 1316.328125 1390.054688 1321.320312 1400.605469 1319.199219 C 1403.296875 1318.652344 1405.929688 1320.402344 1406.472656 1323.101562 C 1407.015625 1325.796875 1405.269531 1328.425781 1402.570312 1328.96875 C 1400.078125 1329.46875 1397.800781 1329.6875 1395.734375 1329.6875",
 ];
 
-/** Renders the mascot as a PNG of the given pixel width, in `color`. */
-export function mascotPng(widthPx: number, color: string): Buffer {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="1318 1149 150 225">${PATHS.map(
-    (d) => `<path fill="${color}" d="${d}"/>`,
-  ).join("")}</svg>`;
+/** Bounding box of the mascot artwork, in its own path coordinate space. */
+export const MASCOT_VIEWBOX = { x: 1318, y: 1149, w: 150, h: 225 } as const;
+
+/** The mascot as raw `<path>` markup in `color`, for embedding in a larger SVG. */
+export function mascotPaths(color: string): string {
+  return PATHS.map((d) => `<path fill="${color}" d="${d}"/>`).join("");
+}
+
+/** Rasterizes an SVG string to a PNG of the given pixel width (transparent bg). */
+export function svgToPng(svg: string, widthPx: number): Buffer {
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: widthPx },
     background: "rgba(0,0,0,0)",
   });
   return Buffer.from(resvg.render().asPng());
+}
+
+/** Renders the mascot as a PNG of the given pixel width, in `color`. */
+export function mascotPng(widthPx: number, color: string): Buffer {
+  const { x, y, w, h } = MASCOT_VIEWBOX;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}">${mascotPaths(
+    color,
+  )}</svg>`;
+  return svgToPng(svg, widthPx);
 }
