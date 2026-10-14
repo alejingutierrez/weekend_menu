@@ -12,6 +12,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { LOYALTY_RECOVERY_SCHEMA } from "./loyalty-schema";
 import { normalizeCode } from "./loyalty-code";
+import { assertLoyaltyDatabase } from "./loyalty-config";
 import {
   STAMPS_PER_REWARD,
   type AppleRegistration,
@@ -19,6 +20,7 @@ import {
 } from "./loyalty-types";
 
 const DB_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+assertLoyaltyDatabase(DB_URL, process.env.VERCEL_ENV);
 const client = DB_URL ? neon(DB_URL) : null;
 
 function sql() {
@@ -122,6 +124,21 @@ export async function findByCode(code: string): Promise<Customer | null> {
   const rows = (await sql()`SELECT * FROM customers WHERE code = ${norm}
     OR id = (SELECT customer_id FROM customer_aliases WHERE alias_code = ${norm})`) as Row[];
   return rows[0] ? rowToCustomer(rows[0]) : null;
+}
+
+/** Retain staff-observed failed scans without storing the signed QR token. */
+export async function recordFailedScan(
+  reference: string | undefined,
+  reason: "invalid_signature" | "customer_missing" | "archived",
+  actor: string,
+): Promise<void> {
+  const id = reference && /^[0-9a-f-]{36}$/i.test(reference) ? reference : "unknown-qr";
+  try {
+    await sql()`INSERT INTO loyalty_events(customer_id, operation, actor, after_state)
+      VALUES (${id}, 'SCAN_FAILED', ${actor}, ${JSON.stringify({ reason })}::jsonb)`;
+  } catch {
+    console.error("[loyalty] could not record failed scan", { reason });
+  }
 }
 
 export async function findByContact(
