@@ -75,6 +75,12 @@ export function decryptLoyaltyBackup(
 export function backupDigest(data: LoyaltyBackup) {
   return createHash("sha256").update(JSON.stringify(data)).digest("hex");
 }
+
+export function assertCompleteCardTokens(data:LoyaltyBackup):void {
+  const tokens=new Map(data.tokens.map(t=>[t.serial,t.token]));
+  const required=[...data.customers.map(c=>c.id),...data.aliases.map(a=>a.alias_id)];
+  if(required.some(id=>typeof tokens.get(id)!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(String(tokens.get(id)))))throw new Error('Backup is missing permanent card tokens');
+}
 /** A plan never rolls back existing balances or substitutes conflicting identities. */
 export function planMissingCardRecovery(
   backup: LoyaltyBackup,
