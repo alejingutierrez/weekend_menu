@@ -1,46 +1,79 @@
-/**
- * Best-effort propagation of a customer's current state to their wallet
- * passes after a stamp/redeem. Google: PATCH the object (auto-syncs).
- * Apple: push to registered devices so they re-fetch the pass.
- *
- * Everything is wrapped so a wallet outage never breaks stamping.
- */
-
+/** Durable delivery jobs are written atomically with the customer's change. */
 import "server-only";
 import type { Customer } from "./loyalty-types";
-import { buildStampUrl } from "./stamp-link";
 import { getBaseUrl } from "./base-url";
-
-async function resolveBaseUrl(): Promise<string> {
-  try {
-    return await getBaseUrl();
-  } catch {
-    return (process.env.PUBLIC_BASE_URL ?? "").replace(/\/+$/, "");
-  }
-}
+import { buildStampUrl } from "./stamp-link";
+import { retryDelaySeconds } from "./apple-protocol";
+import {
+  claimWalletJobs,
+  finishWalletJob,
+  getCustomer,
+  getRegistrationsForSerial,
+  revokeApplePushToken,
+} from "./loyalty-store";
 
 export async function syncWallets(customer: Customer): Promise<void> {
-  const baseUrl = await resolveBaseUrl();
+  const errors: string[] = [];
+  const baseUrl = await getBaseUrl();
   const stampUrl = await buildStampUrl(baseUrl, customer.id);
-
-  // Google Wallet — PATCH the loyalty object.
-  try {
-    const { googleConfigured, googleSync } = await import("./google-wallet");
-    if (googleConfigured()) await googleSync(customer, stampUrl);
-  } catch (e) {
-    console.error("[wallet-sync] Google sync failed:", e);
-  }
-
-  // Apple Wallet — push registered devices to re-fetch.
-  try {
-    const { apnsConfigured } = await import("./apple-wallet");
-    if (apnsConfigured()) {
-      const { getRegistrationsForSerial } = await import("./loyalty-store");
-      const { sendPassUpdates } = await import("./apns");
-      const regs = await getRegistrationsForSerial(customer.id);
-      if (regs.length) await sendPassUpdates(regs.map((r) => r.pushToken));
+  const { googleConfigured, googleSync } = await import("./google-wallet");
+  if (googleConfigured()) {
+    try {
+      await googleSync(customer, stampUrl);
+    } catch {
+      errors.push("google_unavailable");
     }
-  } catch (e) {
-    console.error("[wallet-sync] Apple push failed:", e);
   }
+  const { apnsConfigured } = await import("./apple-wallet");
+  const registrations = await getRegistrationsForSerial(customer.id);
+  if (!apnsConfigured() && registrations.length)
+    errors.push("apple_unconfigured");
+  if (apnsConfigured()) {
+    if (registrations.length) {
+      try {
+        const { sendPassUpdates } = await import("./apns");
+        const results = await sendPassUpdates(
+          registrations.map((r) => r.pushToken),
+        );
+        for (const result of results) {
+          if (
+            result.status === 410 ||
+            (result.status === 400 && result.reason === "BadDeviceToken")
+          )
+            await revokeApplePushToken(result.pushToken);
+          else if (result.status !== 200)
+            errors.push("apple_" + (result.status || "unavailable"));
+        }
+      } catch {
+        errors.push("apple_unavailable");
+      }
+    }
+  }
+  if (errors.length) throw new Error([...new Set(errors)].join(","));
+}
+
+export async function processWalletQueue(limit = 10, customerId?: string) {
+  const jobs = await claimWalletJobs(limit, customerId);
+  let delivered = 0,
+    retained = 0;
+  for (const job of jobs) {
+    try {
+      const customer = await getCustomer(job.customerId);
+      if (!customer) throw new Error("customer_missing");
+      await syncWallets(customer);
+      await finishWalletJob(job);
+      delivered++;
+    } catch (e) {
+      const message =
+        e instanceof Error &&
+        /^(apple_[a-z0-9]+|google_unavailable|customer_missing)(,(apple_[a-z0-9]+|google_unavailable))*$/.test(
+          e.message,
+        )
+          ? e.message
+          : "wallet_unavailable";
+      await finishWalletJob(job, message, retryDelaySeconds(job.attempts));
+      retained++;
+    }
+  }
+  return { delivered, retained };
 }

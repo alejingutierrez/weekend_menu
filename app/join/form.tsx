@@ -11,17 +11,41 @@ export function JoinForm() {
     <form action={formAction} className="lc-form">
       <label className="lc-field">
         <span>Nombre</span>
-        <input name="name" type="text" autoComplete="name" required autoFocus />
+        <input
+          name="name"
+          type="text"
+          autoComplete="name"
+          required
+          autoFocus
+          minLength={2}
+          maxLength={120}
+        />
       </label>
       <label className="lc-field">
         <span>Email</span>
-        <input name="email" type="email" autoComplete="email" inputMode="email" placeholder="tu@email.com" />
+        <input
+          name="email"
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          maxLength={254}
+          placeholder="tu@email.com"
+        />
       </label>
       <label className="lc-field">
         <span>Teléfono</span>
-        <input name="phone" type="tel" autoComplete="tel" inputMode="tel" placeholder="Opcional" />
+        <input
+          name="phone"
+          type="tel"
+          autoComplete="tel"
+          inputMode="tel"
+          maxLength={30}
+          placeholder="Opcional"
+        />
       </label>
-      <p className="lc-hint">Con email o teléfono basta — lo usamos para no perder tus sellos.</p>
+      <p className="lc-hint">
+        Con email o teléfono basta — lo usamos para no perder tus sellos.
+      </p>
       {state.error && <p className="lc-error">{state.error}</p>}
       <button type="submit" disabled={pending} className="lc-btn">
         {pending ? "Creando tu tarjeta…" : "Crear mi tarjeta 🍔"}

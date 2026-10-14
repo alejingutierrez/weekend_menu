@@ -28,8 +28,23 @@ export async function confirmStamp(
 
   const customer = await getCustomer(id);
   if (!customer) return { error: "Cliente no encontrado." };
-  if (customer.archivedAt) return { error: "Tarjeta archivada. Restáurala en Fidelidad para poner sellos." };
-  const res = await addStamp(customer.id, actor);
+  if (customer.archivedAt)
+    return {
+      error: "Tarjeta archivada. Restáurala en Fidelidad para poner sellos.",
+    };
+  let res;
+  try {
+    res = await addStamp(
+      customer.id,
+      actor,
+      String(formData.get("operationId") ?? ""),
+    );
+  } catch {
+    return {
+      error:
+        "No pudimos confirmar el sello. Reintenta con este mismo botón para evitar duplicarlo.",
+    };
+  }
   if (!res) return { error: "Cliente no encontrado." };
 
   revalidatePath("/admin/loyalty");

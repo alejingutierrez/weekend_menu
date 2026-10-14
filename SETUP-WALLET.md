@@ -25,7 +25,7 @@ ese checklist.
 4. **Alta como emisor (issuer)** — entra a la **Google Pay & Wallet Console**
    (https://pay.google.com/business/console), sección Google Wallet API.
    Completa los datos del negocio → obtienes un **Issuer ID** (número).
-   - En la misma consola, en *Users*, autoriza el **email del service account**
+   - En la misma consola, en _Users_, autoriza el **email del service account**
      para que pueda crear pases.
    - Nota: la aprobación para producción puede tardar días. Mientras tanto
      funciona en **modo demo** (solo cuentas de prueba autorizadas pueden
@@ -48,9 +48,9 @@ ese checklist.
 1. **Apple Developer Program** — https://developer.apple.com/programs →
    inscríbete (99 USD/año). Anota tu **Team ID** (Membership details).
 2. **Pass Type ID** — Certificates, Identifiers & Profiles → Identifiers → `+`
-   → *Pass Type IDs* → crea `pass.com.weekendburger.loyalty` (o el que prefieras).
+   → _Pass Type IDs_ → crea `pass.com.weekendburger.loyalty` (o el que prefieras).
 3. **Certificado de firma del pase:**
-   - En *Keychain Access* (Mac): Certificate Assistant → Request a Certificate
+   - En _Keychain Access_ (Mac): Certificate Assistant → Request a Certificate
      from a CA → guarda un `.certSigningRequest`.
    - En el portal, sobre el Pass Type ID → Create Certificate → sube el CSR →
      descarga el `.cer`.
@@ -62,9 +62,8 @@ ese checklist.
    ```bash
    openssl x509 -inform der -in AppleWWDRCAG4.cer -out wwdr.pem
    ```
-5. **Clave APNs** (para que el sello se actualice en vivo en el iPhone) — Keys →
-   `+` → activa *Apple Push Notification service* → descarga el `.p8` y anota su
-   **Key ID**.
+5. **Actualizaciones de Apple Wallet** — APNs usa el mismo certificado y
+   clave privada del pase. La clave `.p8` no se usa para esta integración.
 6. **Variables de entorno** (todo en base64 con `base64 -i archivo | tr -d '\n'`):
    ```
    APPLE_PASS_TYPE_ID=pass.com.weekendburger.loyalty
@@ -72,8 +71,6 @@ ese checklist.
    APPLE_PASS_CERT=<base64 del .p12>
    APPLE_PASS_CERT_PASSWORD=<contraseña del .p12>
    APPLE_WWDR_CERT=<base64 del wwdr.pem>
-   APPLE_APNS_KEY=<base64 del .p8>
-   APPLE_APNS_KEY_ID=XXXXXXXXXX
    ```
 
 ---
@@ -85,16 +82,21 @@ ese checklist.
 
 ## ⚠️ Sobre `SESSION_SECRET`
 
-Ahora `SESSION_SECRET` cumple triple función: firma la sesión del admin,
-**cifra los datos de clientes** en Blob y firma los QR de sellado. Si lo
-cambias/rotas:
-- los datos de clientes ya cifrados en Blob dejarán de poder leerse,
-- las tarjetas y sesiones existentes se invalidan.
-Trátalo como un secreto estable y respáldalo.
+`SESSION_SECRET` firma las sesiones de administrador y se conserva para leer el
+archivo Blob antiguo. Los QR y tokens de Wallet existentes se preservan en la
+base con sus valores originales. Antes de cambiar la clave de administrador,
+comprueba que cada tarjeta y alias tenga su token permanente; no cambies el
+identificador ni el token de pases instalados.
+
+Las copias nuevas usan `LOYALTY_BACKUP_KEY`, independiente de la sesión.
+Consulta [el procedimiento de protección y recuperación](docs/loyalty-resilience-runbook.md).
+
+---
 
 ## Imágenes de los pases (placeholders)
 
 De momento las imágenes son **placeholders** de color rojo de marca:
+
 - **Google:** logo del programa en `public/wallet-logo.png` (300×300). Reemplázalo
   por tu logo real, o define `GOOGLE_WALLET_LOGO_URL` con otra URL pública.
 - **Apple:** si creas la carpeta `assets/pass/` con `icon.png` (29×29),

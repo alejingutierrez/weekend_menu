@@ -11,11 +11,13 @@ export function StampConfirm({
   token,
   name,
   stamps,
+  operationId,
 }: {
   id: string;
   token: string;
   name: string;
   stamps: number;
+  operationId: string;
 }) {
   const [state, formAction, pending] = useActionState(confirmStamp, initial);
 
@@ -37,7 +39,11 @@ export function StampConfirm({
             <div className="stamp-result-emoji">✅</div>
             <h2 className="stamp-result-title">Sello puesto</h2>
             <p className="stamp-result-sub">
-              {state.name}: <strong>{state.stamps}/{STAMPS_PER_REWARD}</strong> sellos
+              {state.name}:{" "}
+              <strong>
+                {state.stamps}/{STAMPS_PER_REWARD}
+              </strong>{" "}
+              sellos
             </p>
           </>
         )}
@@ -52,6 +58,7 @@ export function StampConfirm({
     <form action={formAction} className="stamp-confirm">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="t" value={token} />
+      <input type="hidden" name="operationId" value={operationId} />
       <p className="stamp-customer">{name}</p>
       <p className="stamp-progress">
         {stamps}/{STAMPS_PER_REWARD} sellos
