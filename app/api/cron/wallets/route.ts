@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const received = req.headers.get("authorization") ?? "";
   if (
     !expected ||
-    received.length !== expected.length ||
+    Buffer.byteLength(received) !== Buffer.byteLength(expected) ||
     !timingSafeEqual(Buffer.from(received), Buffer.from(expected))
   )
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
