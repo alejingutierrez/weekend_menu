@@ -8,10 +8,12 @@
 
 import "server-only";
 import { headers } from "next/headers";
+import { PRODUCTION_LOYALTY_ORIGIN } from "./loyalty-config";
 
 export async function getBaseUrl(): Promise<string> {
   const explicit = process.env.PUBLIC_BASE_URL;
   if (explicit) return explicit.replace(/\/+$/, "");
+  if (process.env.VERCEL_ENV === "production") return PRODUCTION_LOYALTY_ORIGIN;
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto =
