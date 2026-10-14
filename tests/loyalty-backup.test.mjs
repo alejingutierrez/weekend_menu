@@ -6,6 +6,7 @@ import {
   decryptLoyaltyBackup,
   backupDigest,
   planMissingCardRecovery,
+  assertCompleteCardTokens,
 } from "../lib/loyalty-backup-format.ts";
 const data = {
   version: 1,
@@ -25,6 +26,12 @@ const data = {
   operations: [],
   tokens: [{ serial: "one", token: "private-fixture-token" }],
 };
+test('a backup requires valid permanent tokens for every current and alias serial',()=>{
+  const complete={...data,tokens:[{serial:'one',token:'a'.repeat(43)},{serial:'old-one',token:'b'.repeat(43)}],aliases:[{alias_id:'old-one',customer_id:'one'}]};
+  assert.doesNotThrow(()=>assertCompleteCardTokens(complete));
+  assert.throws(()=>assertCompleteCardTokens({...complete,tokens:complete.tokens.slice(0,1)}));
+  assert.throws(()=>assertCompleteCardTokens({...complete,tokens:[]}));
+});
 test("backup roundtrip preserves every field and ciphertext does not contain contacts or Wallet tokens", () => {
   const key = randomBytes(32).toString("hex"),
     cipher = encryptLoyaltyBackup(data, key);

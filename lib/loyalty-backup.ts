@@ -5,14 +5,18 @@ import {
   backupDigest,
   decryptLoyaltyBackup,
   encryptLoyaltyBackup,
+  assertCompleteCardTokens,
 } from "./loyalty-backup-format";
 import { readLoyaltyBackup, recordLoyaltyBackup } from "./loyalty-store";
+import {preserveAllCardTokens} from "./customer-token";
 export async function createVerifiedLoyaltyBackup() {
   const secret = process.env.LOYALTY_BACKUP_KEY;
   if (!secret) throw new Error("Dedicated backup key missing");
+  await preserveAllCardTokens();
   const data = await readLoyaltyBackup();
   if (!data.customers.length)
     throw new Error("Refusing to publish an empty loyalty backup");
+  assertCompleteCardTokens(data);
   const digest = backupDigest(data),
     encrypted = encryptLoyaltyBackup(data, secret);
   // This existing Blob store is public: only authenticated ciphertext leaves the database.

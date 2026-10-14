@@ -48,19 +48,16 @@ async function hmac(message: string): Promise<string> {
   return b64url(sig);
 }
 
+export async function preserveAllCardTokens(): Promise<void> {
+  const serials=await missingCardTokenSerials();
+  await saveCardTokens(await Promise.all(serials.map(async serial=>({serial,token:await hmac(`stamp:${serial}`)}))));
+}
+
 let bootstrap: Promise<void> | undefined;
 async function preserveExistingTokens(): Promise<void> {
   if (!bootstrap)
     bootstrap = (async () => {
-      const serials = await missingCardTokenSerials();
-      await saveCardTokens(
-        await Promise.all(
-          serials.map(async (serial) => ({
-            serial,
-            token: await hmac(`stamp:${serial}`),
-          })),
-        ),
-      );
+      await preserveAllCardTokens();
     })().catch((e) => {
       bootstrap = undefined;
       throw e;
