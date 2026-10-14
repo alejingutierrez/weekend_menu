@@ -19,6 +19,7 @@ if (
 )
   throw new Error("Production endpoint is forbidden in integration tests");
 process.env.DATABASE_URL = env.TEST_DATABASE_URL;
+process.env.LOYALTY_DATABASE_URL = env.TEST_DATABASE_URL;
 process.env.VERCEL_ENV = "preview";
 process.env.PUBLIC_BASE_URL = "https://weekend-menu.vercel.app";
 process.env.SESSION_SECRET = "isolated-test-signing-secret-" + randomUUID();
@@ -254,6 +255,67 @@ test(
           await db`SELECT count(*)::int AS n,md5(string_agg(to_jsonb(c)::text,'' ORDER BY id)) AS digest FROM customers c WHERE id<>ALL(${ids}::text[])`;
         assert.deepEqual(after, before);
         assert.equal((await store.loyaltyHealth()).healthy, true);
+      },
+    );
+    await t.test(
+      "shared limits stay atomic during concurrent requests and recover after a window",
+      async () => {
+        const bucket = "synthetic-rate-" + randomUUID(),
+          rule = { bucket, limit: 5, seconds: 900 };
+        const results = await Promise.all(
+          Array.from({ length: 25 }, () => store.consumeRateLimits([rule])),
+        );
+        assert.equal(results.filter(Boolean).length, 5);
+        await db`UPDATE app_rate_limits SET window_started=window_started-interval '1 day' WHERE bucket=${bucket}`;
+        assert.equal(await store.consumeRateLimits([rule]), true);
+      },
+    );
+    await t.test(
+      "canonical-card enrollment cap includes aliases and concurrent devices without changing existing rows",
+      async () => {
+        const quota = await store.createCustomer({
+          name: "Isolated enrollment quota",
+          email: randomUUID() + "@example.invalid",
+        });
+        ids.push(quota.id);
+        const oldId = randomUUID();
+        await db`INSERT INTO customer_aliases(alias_id,alias_code,customer_id) VALUES(${oldId},${"Q" + randomUUID().replace(/-/g, "").slice(0, 5).toUpperCase()},${quota.id})`;
+        const enroll = (device, serial) =>
+          store.addAppleRegistration({
+            deviceLibraryId: device,
+            serial,
+            pushToken: "a".repeat(64),
+            registeredAt: new Date().toISOString(),
+          });
+        const attempts = await Promise.allSettled(
+          Array.from({ length: 25 }, (_, i) =>
+            enroll("quota-" + i, i % 2 ? oldId : quota.id),
+          ),
+        );
+        assert.equal(
+          attempts.filter((r) => r.status === "fulfilled").length,
+          10,
+        );
+        assert.equal(
+          (await store.getRegistrationsForSerial(quota.id)).length,
+          10,
+        );
+        const [existing] =
+          await db`SELECT device_library_id,serial FROM apple_registrations WHERE serial IN(${quota.id},${oldId}) LIMIT 1`;
+        assert.equal(
+          await enroll(existing.device_library_id, existing.serial),
+          false,
+        );
+      },
+    );
+    await t.test(
+      "exhausted delivery jobs pause without deletion and authenticated recovery can resume them",
+      async () => {
+        await db`UPDATE wallet_sync_jobs SET attempts=12,available_at=now(),locked_until=NULL WHERE customer_id=${c.id}`;
+        assert.equal((await store.claimWalletJobs(1, c.id)).length, 0);
+        assert.ok((await store.walletQueueStatus()).paused >= 1);
+        await store.resumeWalletRetries();
+        assert.equal((await store.claimWalletJobs(1, c.id)).length, 1);
       },
     );
     await t.test(

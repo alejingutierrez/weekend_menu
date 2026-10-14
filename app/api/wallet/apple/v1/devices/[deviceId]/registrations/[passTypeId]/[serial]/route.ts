@@ -11,7 +11,10 @@ import {
   addAppleRegistration,
   getCustomer,
   removeAppleRegistration,
+  RegistrationLimitError,
 } from "@/lib/loyalty-store";
+import { enforceRequestLimits, RequestLimitError } from "@/lib/request-limits";
+import { readLimitedJson } from "@/lib/limited-json";
 import { verifyApplePassAuth } from "@/lib/apple-wallet";
 
 import { validAppleIdentifiers } from "@/lib/apple-protocol";
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const customer = await getCustomer(serial);
     if (!customer) return new NextResponse(null, { status: 404 });
 
-    const body = (await req.json().catch(() => null)) as {
+    const body = (await readLimitedJson(req, 4096).catch(() => null)) as {
       pushToken?: string;
     } | null;
     if (
@@ -44,14 +47,24 @@ export async function POST(req: NextRequest, { params }: Params) {
     )
       return new NextResponse(null, { status: 400 });
 
-    const inserted = await addAppleRegistration({
-      serial,
-      deviceLibraryId: deviceId,
-      pushToken: body.pushToken,
-      registeredAt: new Date().toISOString(),
-    });
-    // 201 = newly registered (Apple accepts 200 for already-registered too).
-    return new NextResponse(null, { status: inserted ? 201 : 200 });
+    try {
+      await enforceRequestLimits("wallet", customer.id, req.headers);
+      const inserted = await addAppleRegistration({
+        serial,
+        deviceLibraryId: deviceId,
+        pushToken: body.pushToken,
+        registeredAt: new Date().toISOString(),
+      });
+      // 201 = newly registered (Apple accepts 200 for already-registered too).
+      return new NextResponse(null, { status: inserted ? 201 : 200 });
+    } catch (e) {
+      if (e instanceof RequestLimitError || e instanceof RegistrationLimitError)
+        return new NextResponse(null, {
+          status: 429,
+          headers: { "Retry-After": "900" },
+        });
+      throw e;
+    }
   });
 }
 export async function DELETE(req: NextRequest, { params }: Params) {

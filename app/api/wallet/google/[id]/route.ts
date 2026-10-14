@@ -19,7 +19,10 @@ export async function GET(
   const { id } = await params;
   const customer = await getCustomer(id);
   if (!customer) {
-    return NextResponse.json({ error: "Cliente no encontrado." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Cliente no encontrado." },
+      { status: 404 },
+    );
   }
 
   const baseUrl = await getBaseUrl();
@@ -30,7 +33,10 @@ export async function GET(
     return NextResponse.redirect(saveUrl);
   } catch (e) {
     return NextResponse.json(
-      { error: "No se pudo generar el pase de Google.", detail: String(e) },
+      {
+        error:
+          "No se pudo generar el pase de Google. Puedes usar tu tarjeta web.",
+      },
       { status: 502 },
     );
   }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { Customer } from "@/lib/loyalty-types";
 import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
@@ -10,7 +9,6 @@ import {
   restoreCustomerAction,
   redeemRewardAction,
 } from "./actions";
-import { normalizeCode } from "@/lib/loyalty-code";
 
 function SubmitButton({
   className,
@@ -39,59 +37,48 @@ function shortDate(iso?: string): string {
 export function LoyaltyPanel({
   customers,
   operationKeys,
+  query,
+  archived,
+  archivedCount,
 }: {
   customers: Customer[];
   operationKeys: Record<string, { stamp: string; redeem: string }>;
+  query: string;
+  archived: boolean;
+  archivedCount: number;
 }) {
-  const [query, setQuery] = useState("");
-  const [archived, setArchived] = useState(false);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return customers.filter((c) => Boolean(c.archivedAt) === archived);
-    return customers.filter(
-      (c) =>
-        [c.name, c.code, ...(c.aliases ?? []), c.email ?? "", c.phone ?? ""]
-          .join(" ")
-          .toLowerCase()
-          .includes(q) ||
-        [c.code, ...(c.aliases ?? [])].includes(normalizeCode(q)),
-    );
-  }, [customers, query, archived]);
+  const filtered = customers;
 
   return (
     <div className="lyl-panel">
       <div className="lyl-row-actions" style={{ marginBottom: 12 }}>
-        <button
-          type="button"
+        <a
+          href="/admin/loyalty"
           className={`lyl-btn ${archived ? "ghost" : "primary"}`}
-          aria-pressed={!archived}
-          onClick={() => {
-            setArchived(false);
-            setQuery("");
-          }}
         >
           Activos
-        </button>
-        <button
-          type="button"
+        </a>
+        <a
+          href="/admin/loyalty?archived=1"
           className={`lyl-btn ${archived ? "primary" : "ghost"}`}
-          aria-pressed={archived}
-          onClick={() => {
-            setArchived(true);
-            setQuery("");
-          }}
         >
-          Archivados ({customers.filter((c) => c.archivedAt).length})
-        </button>
+          Archivados ({archivedCount})
+        </a>
       </div>
-      <input
-        className="lyl-search"
-        type="search"
-        placeholder="Buscar por nombre, código, email o teléfono…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <form action="/admin/loyalty" method="get">
+        <input type="hidden" name="archived" value={archived ? "1" : "0"} />
+        <input
+          name="q"
+          maxLength={120}
+          className="lyl-search"
+          type="search"
+          placeholder="Buscar por nombre, código, email o teléfono…"
+          defaultValue={query}
+        />
+        <button className="lyl-btn ghost" type="submit">
+          Buscar
+        </button>
+      </form>
 
       {filtered.length === 0 ? (
         <p className="admin-muted">

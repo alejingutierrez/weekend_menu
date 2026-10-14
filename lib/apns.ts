@@ -20,53 +20,62 @@ export async function sendPassUpdates(
   });
   client.on("error", () => {});
   client.setTimeout(8000, () => client.destroy());
+  const unique = [...new Set(pushTokens)],
+    results: ApnsResult[] = new Array(unique.length);
+  let next = 0;
   try {
-    return await Promise.all(
-      [...new Set(pushTokens)].map(
-        (pushToken) =>
-          new Promise<ApnsResult>((resolve) => {
-            let done = false,
-              status = 0,
-              body = "";
-            const finish = (reason?: string) => {
-              if (done) return;
-              done = true;
-              resolve({ pushToken, status, reason });
-            };
-            const req = client.request({
-              ":method": "POST",
-              ":path": `/3/device/${pushToken}`,
-              "apns-topic": process.env.APPLE_PASS_TYPE_ID,
-              "apns-priority": "5",
-            });
-            req.setTimeout(7000, () => {
-              finish("timeout");
-              req.close();
-            });
-            req.on(
-              "response",
-              (headers) => (status = Number(headers[":status"]) || 0),
-            );
-            req.setEncoding("utf8");
-            req.on("data", (d) => {
-              if (body.length < 1024) body += d;
-            });
-            req.on("end", () => {
-              let reason: string | undefined;
-              try {
-                const r = JSON.parse(body).reason;
-                if (typeof r === "string" && /^[A-Za-z]+$/.test(r)) reason = r;
-              } catch {}
-              finish(reason);
-            });
-            req.on("error", () => finish("network_error"));
-            req.on("close", () =>
-              finish(status === 200 ? undefined : "connection_closed"),
-            );
-            req.end("{}");
-          }),
-      ),
+    const send = (pushToken: string) =>
+      new Promise<ApnsResult>((resolve) => {
+        let done = false,
+          status = 0,
+          body = "";
+        const finish = (reason?: string) => {
+          if (done) return;
+          done = true;
+          resolve({ pushToken, status, reason });
+        };
+        const req = client.request({
+          ":method": "POST",
+          ":path": `/3/device/${pushToken}`,
+          "apns-topic": process.env.APPLE_PASS_TYPE_ID,
+          "apns-priority": "5",
+        });
+        req.setTimeout(7000, () => {
+          finish("timeout");
+          req.close();
+        });
+        req.on(
+          "response",
+          (headers) => (status = Number(headers[":status"]) || 0),
+        );
+        req.setEncoding("utf8");
+        req.on("data", (d) => {
+          if (body.length < 1024) body += d;
+        });
+        req.on("end", () => {
+          let reason: string | undefined;
+          try {
+            const r = JSON.parse(body).reason;
+            if (typeof r === "string" && /^[A-Za-z]+$/.test(r)) reason = r;
+          } catch {}
+          finish(reason);
+        });
+        req.on("error", () => finish("network_error"));
+        req.on("close", () =>
+          finish(status === 200 ? undefined : "connection_closed"),
+        );
+        req.end("{}");
+      });
+    await Promise.all(
+      Array.from({ length: Math.min(8, unique.length) }, async () => {
+        for (;;) {
+          const index = next++;
+          if (index >= unique.length) return;
+          results[index] = await send(unique[index]);
+        }
+      }),
     );
+    return results;
   } finally {
     client.destroy();
   }

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createCustomer } from "@/lib/loyalty-store";
 import { ExistingContactError, validateJoin } from "@/lib/loyalty-validation";
+import { enforceRequestLimits } from "@/lib/request-limits";
 
 export type JoinState = { error?: string };
 
@@ -29,6 +30,7 @@ export async function joinLoyalty(
     return { error: (e as Error).message };
   }
   try {
+    await enforceRequestLimits("join");
     customer = await createCustomer({ name, email, phone });
   } catch (e) {
     if (e instanceof ExistingContactError)
