@@ -1,9 +1,7 @@
 /**
  * Shared types for the loyalty program ("Weekend Club").
  *
- * Customer records live in Vercel Blob (`customers.json`, encrypted) in
- * production, or a local `data/customers.json` file in dev — see
- * `lib/loyalty-store.ts`, which mirrors `lib/menu-store.ts`.
+ * Customer records and their change history live in Postgres.
  */
 
 /** Stamps required to earn one free burger. */
@@ -33,6 +31,11 @@ export type Customer = {
   googleObjectId?: string;
   /** Apple pass serial number, once issued (Fase 3). */
   appleSerial?: string;
+  /** Archiving preserves the card and balances and can be undone by an admin. */
+  archivedAt?: string;
+  archivedBy?: string;
+  /** Previous codes recovered from a verified duplicate card. */
+  aliases?: string[];
 };
 
 /**

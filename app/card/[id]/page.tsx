@@ -43,7 +43,7 @@ export default async function CardPage({
   }
 
   const baseUrl = await getBaseUrl();
-  const stampUrl = await buildStampUrl(baseUrl, id);
+  const stampUrl = await buildStampUrl(baseUrl, customer.id);
   const qr = await QRCode.toDataURL(stampUrl, {
     margin: 1,
     width: 320,
@@ -63,6 +63,10 @@ export default async function CardPage({
 
       <div className="lc-card">
         <p className="lc-hello">¡Hola, {customer.name}! 👋</p>
+
+        {customer.archivedAt && (
+          <p role="status">Tu tarjeta está archivada. Conservamos tu código y sellos; pide en caja que la restauren.</p>
+        )}
 
         {customer.rewardsAvailable > 0 && (
           <div className="lc-reward-banner">
