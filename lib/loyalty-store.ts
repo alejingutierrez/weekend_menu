@@ -18,6 +18,13 @@ import {
   validOperationId,
 } from "./loyalty-validation";
 import { LOYALTY_RESILIENCE_SCHEMA } from "./loyalty-resilience-schema";
+import {
+  LOYALTY_SECURITY_SCHEMA,
+  LOYALTY_SECURITY_VERSION,
+  MAX_CARD_DEVICES,
+  MAX_CARD_REGISTRATION_ROWS,
+  MAX_WALLET_ATTEMPTS,
+} from "./loyalty-security-schema";
 import { updatedSerials } from "./apple-protocol";
 import type { LoyaltyBackup } from "./loyalty-backup-format";
 import { assertLoyaltyDatabase, assertLoyaltyBranch } from "./loyalty-config";
@@ -27,7 +34,10 @@ import {
   type Customer,
 } from "./loyalty-types";
 
-const DB_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const DB_URL =
+  process.env.LOYALTY_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL;
 assertLoyaltyDatabase(DB_URL, process.env.VERCEL_ENV);
 const client = DB_URL ? neon(DB_URL) : null;
 
@@ -38,9 +48,14 @@ async function sql() {
     );
   }
   const rows =
-    await client`SELECT current_setting('neon.branch_id', true) AS branch_id`;
+    await client`SELECT current_setting('neon.branch_id', true) AS branch_id,current_user AS role`;
   const branch = String(rows[0]?.branch_id ?? "");
   assertLoyaltyBranch(branch, process.env.VERCEL_ENV);
+  if (
+    process.env.VERCEL_ENV === "production" &&
+    rows[0]?.role !== "weekend_runtime"
+  )
+    throw new Error("Production requires the limited loyalty runtime role.");
   if (
     process.env.VERCEL_ENV !== "production" &&
     branch === "br-crimson-fire-ac3ov0rp"
@@ -99,6 +114,15 @@ function rowToCustomer(r: Row): Customer {
 /** Idempotent schema creation. Safe to call repeatedly. */
 export async function ensureSchema(): Promise<void> {
   const db = await sql();
+  try {
+    const installed =
+      await db`SELECT version FROM loyalty_schema_migrations WHERE version=${LOYALTY_SECURITY_VERSION}`;
+    if (installed.length) return;
+  } catch (e) {
+    if ((e as { code?: string }).code !== "42P01") throw e;
+  }
+  if (process.env.VERCEL_ENV === "production")
+    throw new Error("Apply the owner migration before publishing.");
   await db`CREATE TABLE IF NOT EXISTS customers (
     id text PRIMARY KEY,
     code text UNIQUE NOT NULL,
@@ -132,6 +156,47 @@ export async function ensureSchema(): Promise<void> {
   await db.transaction(
     LOYALTY_RESILIENCE_SCHEMA.map((statement) => db.query(statement)),
   );
+  await db.transaction(
+    LOYALTY_SECURITY_SCHEMA.map((statement) => db.query(statement)),
+  );
+}
+
+/** Atomic shared limits; buckets contain keyed hashes, never raw contacts/IPs. */
+export async function consumeRateLimits(
+  rules: Array<{ bucket: string; limit: number; seconds: number }>,
+): Promise<boolean> {
+  const db = await sql();
+  if (
+    !rules.length ||
+    rules.length > 4 ||
+    rules.some(
+      (r) =>
+        !Number.isSafeInteger(r.limit) ||
+        r.limit < 1 ||
+        !Number.isSafeInteger(r.seconds) ||
+        r.seconds < 1,
+    )
+  )
+    throw new Error("Invalid rate policy");
+  const results = await db.transaction(
+    [...rules]
+      .sort((a, b) => a.bucket.localeCompare(b.bucket))
+      .map(
+        (r) => db`
+    INSERT INTO app_rate_limits(bucket,window_started,attempts,expires_at)
+    VALUES(${r.bucket},to_timestamp(floor(extract(epoch FROM clock_timestamp())/${r.seconds})*${r.seconds}),1,
+      to_timestamp((floor(extract(epoch FROM clock_timestamp())/${r.seconds})+1)*${r.seconds}))
+    ON CONFLICT(bucket) DO UPDATE SET
+      attempts=CASE WHEN app_rate_limits.window_started=EXCLUDED.window_started THEN LEAST(app_rate_limits.attempts+1,${r.limit + 1}) ELSE 1 END,
+      window_started=EXCLUDED.window_started,expires_at=EXCLUDED.expires_at
+    RETURNING attempts<=${r.limit} AS allowed`,
+      ),
+  );
+  return results.every((rows) => rows[0]?.allowed === true);
+}
+export async function purgeExpiredRateLimits() {
+  const db = await sql();
+  await db`DELETE FROM app_rate_limits WHERE expires_at<now()-interval '1 day'`;
 }
 
 /* ---------- reads ---------- */
@@ -194,8 +259,43 @@ export async function listCustomers(): Promise<Customer[]> {
     SELECT c.*, ARRAY(SELECT a.alias_code FROM customer_aliases a
                      WHERE a.customer_id = c.id ORDER BY a.alias_code) AS aliases
     FROM customers c
-    ORDER BY COALESCE(last_stamp_at, created_at) DESC`) as Row[];
+    ORDER BY COALESCE(last_stamp_at, created_at) DESC LIMIT 200`) as Row[];
   return rows.map(rowToCustomer);
+}
+
+export async function customerDirectory(
+  query = "",
+  page = 1,
+  archived = false,
+) {
+  const db = await sql(),
+    q = query.trim().slice(0, 120).toLowerCase(),
+    code = normalizeCode(q);
+  const currentPage = Number.isFinite(page)
+    ? Math.min(1000000, Math.max(1, Math.trunc(page)))
+    : 1;
+  const results = await db.transaction([
+    db`SELECT c.*,ARRAY(SELECT alias_code FROM customer_aliases WHERE customer_id=c.id ORDER BY alias_code) AS aliases
+      FROM customers c WHERE (${q}<>'' OR (c.archived_at IS NOT NULL)=${archived})
+      AND (${q}='' OR strpos(lower(concat_ws(' ',c.name,c.code,c.email,c.phone)),${q})>0 OR c.code=${code}
+        OR EXISTS(SELECT 1 FROM customer_aliases a WHERE a.customer_id=c.id AND (strpos(lower(a.alias_code),${q})>0 OR a.alias_code=${code})))
+      ORDER BY COALESCE(c.last_stamp_at,c.created_at) DESC,c.id LIMIT 50 OFFSET ${(currentPage - 1) * 50}`,
+    db`SELECT count(*)::int AS matches FROM customers c WHERE (${q}<>'' OR (c.archived_at IS NOT NULL)=${archived})
+      AND (${q}='' OR strpos(lower(concat_ws(' ',c.name,c.code,c.email,c.phone)),${q})>0 OR c.code=${code}
+        OR EXISTS(SELECT 1 FROM customer_aliases a WHERE a.customer_id=c.id AND (strpos(lower(a.alias_code),${q})>0 OR a.alias_code=${code})))`,
+    db`SELECT count(*) FILTER(WHERE archived_at IS NULL)::int AS active,count(*) FILTER(WHERE archived_at IS NOT NULL)::int AS archived,
+      COALESCE(sum(total_stamps) FILTER(WHERE archived_at IS NULL),0)::int AS stamps,
+      COALESCE(sum(rewards_available) FILTER(WHERE archived_at IS NULL),0)::int AS rewards FROM customers`,
+  ]);
+  return {
+    customers: results[0].map(rowToCustomer),
+    matches: Number(results[1][0].matches),
+    page: currentPage,
+    active: Number(results[2][0].active),
+    archived: Number(results[2][0].archived),
+    totalStamps: Number(results[2][0].stamps),
+    rewards: Number(results[2][0].rewards),
+  };
 }
 
 /* ---------- mutations ---------- */
@@ -373,13 +473,33 @@ export async function addAppleRegistration(
   reg: AppleRegistration,
 ): Promise<boolean> {
   const db = await sql();
-  const rows = await db`
+  const results = await db.transaction([
+    db`SELECT id FROM customers WHERE id=${reg.serial} OR id=(SELECT customer_id FROM customer_aliases WHERE alias_id=${reg.serial}) FOR UPDATE`,
+    db`
     INSERT INTO apple_registrations (device_library_id, serial, push_token)
-    VALUES (${reg.deviceLibraryId}, ${reg.serial}, ${reg.pushToken})
+    SELECT ${reg.deviceLibraryId},${reg.serial},${reg.pushToken}
+    FROM customers c WHERE (c.id=${reg.serial} OR c.id=(SELECT customer_id FROM customer_aliases WHERE alias_id=${reg.serial}))
+    AND (
+      EXISTS(SELECT 1 FROM apple_registrations WHERE device_library_id=${reg.deviceLibraryId} AND serial=${reg.serial} AND revoked_at IS NULL)
+      OR (
+        (SELECT count(*) FROM apple_registrations r WHERE r.revoked_at IS NULL AND (r.serial=c.id OR r.serial IN(SELECT alias_id FROM customer_aliases WHERE customer_id=c.id)))<${MAX_CARD_DEVICES}
+        AND (EXISTS(SELECT 1 FROM apple_registrations WHERE device_library_id=${reg.deviceLibraryId} AND serial=${reg.serial})
+          OR (SELECT count(*) FROM apple_registrations r WHERE r.serial=c.id OR r.serial IN(SELECT alias_id FROM customer_aliases WHERE customer_id=c.id))<${MAX_CARD_REGISTRATION_ROWS})
+      )
+    )
     ON CONFLICT (device_library_id, serial)
     DO UPDATE SET push_token = EXCLUDED.push_token, revoked_at=NULL, updated_at=clock_timestamp()
-    RETURNING (xmax=0) AS inserted`;
+    RETURNING (xmax=0) AS inserted`,
+  ]);
+  const rows = results[1];
+  if (!rows.length) throw new RegistrationLimitError();
   return rows[0].inserted === true;
+}
+export class RegistrationLimitError extends Error {
+  constructor() {
+    super("Wallet registration temporarily limited");
+    this.name = "RegistrationLimitError";
+  }
 }
 
 export async function removeAppleRegistration(
@@ -442,6 +562,7 @@ export async function claimWalletJobs(limit: number, customerId?: string) {
   const lease = randomUUID();
   const rows = await db`WITH due AS (
     SELECT customer_id FROM wallet_sync_jobs WHERE available_at<=now()
+      AND attempts<${MAX_WALLET_ATTEMPTS}
       AND (locked_until IS NULL OR locked_until<now()) AND (${customerId ?? null}::text IS NULL OR customer_id=${customerId ?? null})
     ORDER BY available_at LIMIT ${Math.min(25, Math.max(1, limit))} FOR UPDATE SKIP LOCKED)
     UPDATE wallet_sync_jobs j SET lease_id=${lease}::uuid, locked_until=now()+interval '90 seconds', attempts=attempts+1
@@ -470,15 +591,23 @@ export async function finishWalletJob(
 export async function walletQueueStatus() {
   const db = await sql();
   const rows =
-    await db`SELECT count(*)::int AS pending, count(*) FILTER(WHERE attempts>0)::int AS retries FROM wallet_sync_jobs`;
-  return { pending: Number(rows[0].pending), retries: Number(rows[0].retries) };
+    await db`SELECT count(*)::int AS pending, count(*) FILTER(WHERE attempts>0)::int AS retries,count(*) FILTER(WHERE attempts>=${MAX_WALLET_ATTEMPTS})::int AS paused FROM wallet_sync_jobs`;
+  return {
+    pending: Number(rows[0].pending),
+    retries: Number(rows[0].retries),
+    paused: Number(rows[0].paused),
+  };
+}
+export async function resumeWalletRetries() {
+  const db = await sql();
+  await db`UPDATE wallet_sync_jobs SET attempts=0,available_at=now() WHERE locked_until IS NULL OR locked_until<now()`;
 }
 
 export async function missingCardTokenSerials(): Promise<string[]> {
   const db = await sql();
   const rows =
     await db`SELECT serial FROM (SELECT id AS serial FROM customers UNION SELECT alias_id FROM customer_aliases) cards
-    WHERE NOT EXISTS(SELECT 1 FROM loyalty_card_tokens t WHERE t.serial=cards.serial)`;
+    WHERE NOT EXISTS(SELECT 1 FROM loyalty_card_tokens t WHERE t.serial=cards.serial) LIMIT 100`;
   return rows.map((r) => String(r.serial));
 }
 

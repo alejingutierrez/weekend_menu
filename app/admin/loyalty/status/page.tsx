@@ -1,13 +1,18 @@
 import { requireAdmin } from "@/lib/admin-session";
-import { loyaltyHealth, lastLoyaltyBackup } from "@/lib/loyalty-store";
+import {
+  loyaltyHealth,
+  lastLoyaltyBackup,
+  walletQueueStatus,
+} from "@/lib/loyalty-store";
 import { appleCertificateStatus } from "@/lib/apple-wallet";
 import { retryWallets } from "./actions";
 export const dynamic = "force-dynamic";
 export default async function LoyaltyStatus() {
   await requireAdmin();
-  const [health, backup] = await Promise.all([
+  const [health, backup, queue] = await Promise.all([
     loyaltyHealth(),
     lastLoyaltyBackup(),
+    walletQueueStatus(),
   ]);
   const apple = appleCertificateStatus();
   return (
@@ -35,6 +40,20 @@ export default async function LoyaltyStatus() {
               : "Revisar la configuración del certificado."}
           </dd>
         </dl>
+        {queue.paused > 0 && (
+          <p role="alert">
+            {queue.paused} actualizaciones agotaron sus intentos automáticos.
+            Sus datos están conservados; revisa la configuración y reintenta.
+          </p>
+        )}
+        {(!backup ||
+          Date.now() - new Date(backup.verifiedAt).getTime() >
+            36 * 3600000) && (
+          <p role="alert">
+            La copia cifrada necesita revisión: no hay una copia verificada en
+            las últimas 36 horas.
+          </p>
+        )}
         <p>
           Última copia cifrada verificada:{" "}
           {backup

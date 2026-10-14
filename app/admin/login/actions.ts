@@ -3,7 +3,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import { createSessionCookie } from "@/lib/auth";
+import { createSessionCookie, configuredAdminHash } from "@/lib/auth";
+import { enforceRequestLimits } from "@/lib/request-limits";
 
 export type LoginState = { error?: string };
 
@@ -18,25 +19,8 @@ async function checkCredentials(
 ): Promise<boolean> {
   if (!username || !password) return false;
 
-  const envUser = process.env.ADMIN_USER;
-  const envHash = process.env.ADMIN_PASSWORD_HASH;
-  if (envUser && envHash && username === envUser) {
-    return bcrypt.compare(password, envHash);
-  }
-
-  const b64 = process.env.ADMIN_USERS_B64;
-  if (b64) {
-    try {
-      const list = JSON.parse(
-        Buffer.from(b64, "base64").toString("utf8"),
-      ) as Array<{ u: string; h: string }>;
-      const found = list.find((a) => a.u === username);
-      if (found) return bcrypt.compare(password, found.h);
-    } catch {
-      // malformed config → treat as no match
-    }
-  }
-  return false;
+  const hash = configuredAdminHash(username);
+  return hash ? bcrypt.compare(password, hash) : false;
 }
 
 export async function login(
@@ -46,6 +30,16 @@ export async function login(
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const from = String(formData.get("from") ?? "/admin");
+  if (username.length > 128 || password.length > 256)
+    return { error: "Usuario o contraseña incorrectos." };
+  try {
+    await enforceRequestLimits("login", username);
+  } catch {
+    return {
+      error:
+        "No pudimos iniciar sesión ahora. Espera unos minutos e inténtalo de nuevo.",
+    };
+  }
 
   if (!process.env.ADMIN_PASSWORD_HASH && !process.env.ADMIN_USERS_B64) {
     return { error: "Admin credentials are not configured on the server." };

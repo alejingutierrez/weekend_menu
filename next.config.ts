@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  experimental: { serverActions: { bodySizeLimit: "128kb" } },
   async headers() {
     return ["/card/:path*", "/api/wallet/:path*", "/admin/:path*"].map(
       (source) => ({

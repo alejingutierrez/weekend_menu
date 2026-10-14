@@ -23,6 +23,7 @@ const plan = planMissingCardRecovery(history, current);
 await fs.writeFile(outputFile, JSON.stringify(plan, null, 2) + "\n", {
   mode: 0o600,
 });
+await fs.chmod(outputFile, 0o600);
 console.log({
   missing: plan.missing.length,
   conflicts: plan.conflicts.length,

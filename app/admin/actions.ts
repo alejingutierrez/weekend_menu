@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { writeMenu } from "@/lib/menu-store";
 import { clearedSessionCookie } from "@/lib/auth";
+import { requireAdmin } from "@/lib/admin-session";
 import type { Menu } from "@/lib/menu-types";
 
 export type SaveResult =
@@ -37,9 +38,7 @@ function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
-type ValidationResult =
-  | { ok: true; menu: Menu }
-  | { ok: false; error: string };
+type ValidationResult = { ok: true; menu: Menu } | { ok: false; error: string };
 
 /**
  * Light-touch validation. The admin is single-user with a strong
@@ -74,10 +73,14 @@ function validateMenu(input: unknown): ValidationResult {
   // Coerce to the canonical shape, dropping unknown fields.
   const tier = (t: unknown) => {
     const o = isObj(t) ? t : {};
-    const pill = PILL_STYLES.includes(o.pillStyle as (typeof PILL_STYLES)[number])
+    const pill = PILL_STYLES.includes(
+      o.pillStyle as (typeof PILL_STYLES)[number],
+    )
       ? (o.pillStyle as (typeof PILL_STYLES)[number])
       : "blue";
-    const label = LABEL_COLORS.includes(o.labelColor as (typeof LABEL_COLORS)[number])
+    const label = LABEL_COLORS.includes(
+      o.labelColor as (typeof LABEL_COLORS)[number],
+    )
       ? (o.labelColor as (typeof LABEL_COLORS)[number])
       : "red";
     return {
@@ -124,7 +127,9 @@ function validateMenu(input: unknown): ValidationResult {
       name: asString((input.fries as Record<string, unknown>).name, "Fries"),
       desc: asString((input.fries as Record<string, unknown>).desc),
       tiers: Array.isArray((input.fries as Record<string, unknown>).tiers)
-        ? ((input.fries as Record<string, unknown>).tiers as unknown[]).map(tier)
+        ? ((input.fries as Record<string, unknown>).tiers as unknown[]).map(
+            tier,
+          )
         : [],
     },
     ...(temporada ? { temporada } : {}),
@@ -172,7 +177,9 @@ function validateMenu(input: unknown): ValidationResult {
         "Upgrade",
       ),
       sub: asString((input.adicionesHighlight as Record<string, unknown>).sub),
-      price: asNumber((input.adicionesHighlight as Record<string, unknown>).price),
+      price: asNumber(
+        (input.adicionesHighlight as Record<string, unknown>).price,
+      ),
     },
   };
 
@@ -180,6 +187,7 @@ function validateMenu(input: unknown): ValidationResult {
 }
 
 export async function saveMenu(input: unknown): Promise<SaveResult> {
+  await requireAdmin();
   const validated = validateMenu(input);
   if (!validated.ok) return validated;
 
@@ -191,7 +199,7 @@ export async function saveMenu(input: unknown): Promise<SaveResult> {
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Error al guardar.",
+      error: "No pudimos guardar el menú ahora. Intenta de nuevo.",
     };
   }
 }

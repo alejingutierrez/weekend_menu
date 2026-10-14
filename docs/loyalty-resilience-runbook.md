@@ -17,6 +17,11 @@ the production branch. Do not weaken these checks to repair a configuration erro
   staff can retry from `/admin/loyalty/status`.
 - Invalid Apple push tokens are retired reversibly. Explicit device unregister
   requests remove only that device's registration, never a customer's card.
+- APNs runs at most eight parallel requests per batch. Twelve unsuccessful
+  attempts pause a job without deleting it. The status panel identifies paused
+  jobs; staff can resume them after repairing signing/delivery configuration.
+  Each card permits ten active devices and twenty retained device rows, including
+  recovered serials. Existing active registrations can refresh at capacity.
 - Public signup does not reveal an existing card from known contact information.
   Staff recover the same card using the authenticated loyalty panel, including
   archived cards and old codes; they can open its existing web/Wallet link.
@@ -43,6 +48,10 @@ contact details or private certificate material.
 
 Neon snapshots run daily at 03:00 America/Bogota, retained for 30 days. `main` is
 a protected branch. A manual pre-migration snapshot is also retained.
+Point-in-time history is seven days from October 14 onward. Increasing retention
+does not reconstruct history that had already expired. Snapshot history and
+point-in-time history have separate retention. The status panel alerts when the
+last verified independent backup is more than 36 hours old.
 
 A second daily backup copies a consistent database snapshot to the existing
 Vercel Blob store as AES-256-GCM encrypted, compressed bytes. The encryption key
@@ -56,6 +65,31 @@ Keep the recovery key in private local storage (`.private/weekend-loyalty-backup
 mode 0600) and in the production secret configuration. Do not rotate or delete
 the key while it is needed to decrypt retained backups. Protect this file along
 with the rest of the owner's secure credential backups.
+
+## Runtime permissions and administrator sessions
+
+Set production `LOYALTY_DATABASE_URL` to the separate `weekend_runtime` role on
+the permanent endpoint and branch. Apply `LOYALTY_SECURITY_SCHEMA` and
+`LOYALTY_RUNTIME_PERMISSIONS` with the database owner before publishing code.
+The application refuses owner-role production queries and missing security
+migration metadata; production request handlers perform no DDL. Do not grant
+this role table ownership, schema CREATE, `neon_superuser` membership, or
+customer DELETE/TRUNCATE. Provider-managed owner variables remain in Vercel
+and are a separate credential-isolation limitation.
+
+Administrator sessions expire absolutely after 24 hours without sliding renewal.
+Current configured user membership, password hash and `ADMIN_SESSION_VERSION`
+are verified on every protected request. Publish changed credentials/version to
+revoke previous sessions; legacy cookies require a fresh login. Do not rotate
+`SESSION_SECRET` as an administrator revocation mechanism. If legacy encrypted
+Blob migration remains necessary across a future key rotation, retain the old
+decryption key securely as `LOYALTY_LEGACY_BLOB_SECRET`.
+
+Shared database quotas protect login, enrollment and device registration. They
+store keyed hashes, never raw IPs or contacts. Expired rate metadata is purged
+by the backup cron; it does not delete customers or their history. Limits are
+defined centrally in `lib/request-limits.ts` and should be adjusted deliberately
+using observed legitimate volume, without disabling all controls.
 
 ## Restoring safely
 

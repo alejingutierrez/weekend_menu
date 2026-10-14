@@ -86,3 +86,42 @@ test("Wallet pushes use the pass certificate, bounded requests, empty payload an
     mock.restoreAll();
   }
 });
+
+test("a large legacy token batch never opens more than eight concurrent APNs requests", async () => {
+  fixtureCertificate();
+  let active = 0,
+    peak = 0;
+  mock.method(http2, "connect", () => {
+    const client = new EventEmitter();
+    client.setTimeout = () => {};
+    client.destroy = () => {};
+    client.request = () => {
+      active++;
+      peak = Math.max(peak, active);
+      const req = new EventEmitter();
+      req.setTimeout = () => {};
+      req.setEncoding = () => {};
+      req.close = () => req.emit("close");
+      req.end = () =>
+        setImmediate(() => {
+          active--;
+          req.emit("response", { ":status": 200 });
+          req.emit("end");
+          req.emit("close");
+        });
+      return req;
+    };
+    return client;
+  });
+  try {
+    const tokens = Array.from({ length: 40 }, (_, i) =>
+      i.toString(16).padStart(64, "0"),
+    );
+    const results = await sendPassUpdates(tokens);
+    assert.equal(results.length, 40);
+    assert.ok(results.every((r) => r.status === 200));
+    assert.ok(peak <= 8);
+  } finally {
+    mock.restoreAll();
+  }
+});

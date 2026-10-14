@@ -20,13 +20,18 @@ codes belonged to Alejandro and do not resolve the other reported cases.
   their old source code is not a historical copy of customer data.
 - The retained historical database state includes all 56 older customers that
   remain in production, plus today's new registration in the live database.
-- Postgres counters report 14 prior delete operations. Counters cannot identify
-  the affected people or establish that every operation deleted a real customer.
+- Postgres `n_tup_del` reports 14 tuple-deletion attempts. It counts rows, not
+  distinct customers or statements, and PostgreSQL also retains attempted tuple
+  activity from aborted transactions. It cannot identify people or prove 14
+  committed customer losses. See the October 14 investigation below.
 - Blob contains one old customer file with four records (two Alejandro cards
   and two tests). No additional customer backups or exports were found there.
-- No runtime error clusters were returned for the relevant routes in the
-  accessible seven-day query. Missing-card UI states do not necessarily throw
-  errors, so this does not rule out failed scans.
+- Correction on October 14: Vercel rejected a seven-day runtime query because
+  this project's Pro retention is one day. A subsequent 23-hour query found
+  errors from a previously corrected deployment, with no deletion identities.
+  Neon query telemetry is unavailable in this region, SQL Editor history and
+  saved queries are empty, and Vercel has no configured log drains. An unavailable
+  log source is not evidence that no deletion occurred.
 - Historical implementation notes from July 3 describe cards disappearing
   across certain CLI releases before Git production deployment was established.
   This is an investigative lead, not proof of who was affected. Current

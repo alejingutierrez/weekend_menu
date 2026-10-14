@@ -19,9 +19,12 @@ import {
 } from "node:crypto";
 
 function key(): Buffer {
-  const secret = process.env.SESSION_SECRET;
+  const secret =
+    process.env.LOYALTY_LEGACY_BLOB_SECRET || process.env.SESSION_SECRET;
   if (!secret || secret.length < 16) {
-    throw new Error("SESSION_SECRET must be set to a string of at least 16 chars");
+    throw new Error(
+      "SESSION_SECRET must be set to a string of at least 16 chars",
+    );
   }
   return createHash("sha256").update(secret).digest(); // 32 bytes → AES-256
 }
@@ -45,7 +48,11 @@ export function decryptJson<T>(payload: string): T {
   if (version !== "v1" || !ivB || !tagB || !dataB) {
     throw new Error("Unrecognized ciphertext format");
   }
-  const decipher = createDecipheriv("aes-256-gcm", key(), Buffer.from(ivB, "base64url"));
+  const decipher = createDecipheriv(
+    "aes-256-gcm",
+    key(),
+    Buffer.from(ivB, "base64url"),
+  );
   decipher.setAuthTag(Buffer.from(tagB, "base64url"));
   const dec = Buffer.concat([
     decipher.update(Buffer.from(dataB, "base64url")),
