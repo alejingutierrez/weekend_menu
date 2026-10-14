@@ -11,7 +11,13 @@ codes belonged to Alejandro and do not resolve the other reported cases.
   TTL in the current code. The administrator session has a separate expiry.
 - The production signing configuration metadata has not changed since May 6,
   before the loyalty program launched. Preview has a separate configuration.
-  Signing values were not retrieved or compared in this investigation.
+  With explicit user authorization, only the production signing key was used
+  temporarily to read three historical panels. The key copy and temporary
+  session configuration were removed afterward. No preview key was retrieved
+  and the values were not compared.
+- Three July 3 deployment panels each returned the same 57 current cards, with
+  no additional non-test customer. These releases read the live database;
+  their old source code is not a historical copy of customer data.
 - The retained historical database state includes all 56 older customers that
   remain in production, plus today's new registration in the live database.
 - Postgres counters report 14 prior delete operations. Counters cannot identify
@@ -41,6 +47,21 @@ missing customer, or archived card). Signed tokens and contact details are not
 stored in these diagnostic events. The staff UI distinguishes these states.
 
 Use Git deployments for production. Apply no wholesale restore or invented
-replacement cards to explain unidentified reports. Additional historical panel
-reads require normal application authentication; extraction of the signing
-secret was rejected by automatic approval review and was not performed.
+replacement cards to explain unidentified reports.
+
+## Published verification
+
+The Git production release from PR #4, commit
+`190a35a0feb2b157400ecc2081696dab7cc6b27f`, is READY and serves the public domain.
+After publication, all 56 other current cards again returned HTTP 200 and their
+expected code. Production still has 57 cards, 137 lifetime stamps, 61 Apple
+registrations, and zero archived cards. Six protection/audit triggers are active.
+Daily snapshots are scheduled for 03:00 America/Bogota with 30-day retention.
+A public Apple Wallet pass was generated successfully and its QR and web
+service both point to the stable production domain.
+
+The names and exact cause of the other reported missing cards remain
+unidentified. Available backups, retained database history, Blob objects and
+historical panels have yielded no additional lost customer to recover. Prior
+deletion counters cannot reconstruct names or distinguish real customer
+deletions from tests, aborted transactions or other operations.
