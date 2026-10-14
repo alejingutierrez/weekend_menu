@@ -17,6 +17,7 @@
 import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { X509Certificate } from "node:crypto";
 import forge from "node-forge";
 import { PKPass } from "passkit-generator";
 import { STAMPS_PER_REWARD, type Customer } from "./loyalty-types";
@@ -24,23 +25,19 @@ import { signCustomerId, verifyCustomerToken } from "./customer-token";
 import { canvas, encodePng, fillCircle, solidPng, type RGB } from "./png";
 import { MASCOT_VIEWBOX, mascotMarkup, svgToPng } from "./mascot";
 
-const PASS_TYPE_ID = process.env.APPLE_PASS_TYPE_ID;
-const TEAM_ID = process.env.APPLE_TEAM_ID;
 const BRAND_RED: [number, number, number] = [233, 74, 74];
 
 export function appleConfigured(): boolean {
   return Boolean(
-    PASS_TYPE_ID &&
-      TEAM_ID &&
+    process.env.APPLE_PASS_TYPE_ID &&
+      process.env.APPLE_TEAM_ID &&
       process.env.APPLE_PASS_CERT &&
       process.env.APPLE_WWDR_CERT,
   );
 }
 
 export function apnsConfigured(): boolean {
-  return Boolean(
-    appleConfigured() && process.env.APPLE_APNS_KEY && process.env.APPLE_APNS_KEY_ID,
-  );
+  return Boolean(appleConfigured());
 }
 
 /** The per-pass authentication token Apple sends back on web-service calls. */
@@ -60,8 +57,13 @@ export async function verifyApplePassAuth(
 }
 
 /** Extracts leaf certificate + private key (PEM) from a .p12 buffer. */
-function certsFromP12(p12Der: Buffer, password: string): { cert: string; key: string } {
-  const asn1 = forge.asn1.fromDer(forge.util.createBuffer(p12Der.toString("binary")));
+function certsFromP12(
+  p12Der: Buffer,
+  password: string,
+): { cert: string; key: string } {
+  const asn1 = forge.asn1.fromDer(
+    forge.util.createBuffer(p12Der.toString("binary")),
+  );
   const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, password);
 
   const keyBags = {
@@ -71,17 +73,70 @@ function certsFromP12(p12Der: Buffer, password: string): { cert: string; key: st
   const keyBag =
     keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.[0] ??
     keyBags[forge.pki.oids.keyBag]?.[0];
-  if (!keyBag?.key) throw new Error("No private key found in APPLE_PASS_CERT (.p12)");
+  if (!keyBag?.key)
+    throw new Error("No private key found in APPLE_PASS_CERT (.p12)");
 
   const certBag = p12.getBags({ bagType: forge.pki.oids.certBag })[
     forge.pki.oids.certBag
   ]?.[0];
-  if (!certBag?.cert) throw new Error("No certificate found in APPLE_PASS_CERT (.p12)");
+  if (!certBag?.cert)
+    throw new Error("No certificate found in APPLE_PASS_CERT (.p12)");
 
   return {
     key: forge.pki.privateKeyToPem(keyBag.key),
     cert: forge.pki.certificateToPem(certBag.cert),
   };
+}
+
+/** The pass certificate also authenticates Wallet pushes to APNs. */
+export function appleSigningMaterial(): { cert: string; key: string } {
+  if (!appleConfigured())
+    throw new Error("Apple Wallet configuration incomplete");
+  const material = certsFromP12(
+    Buffer.from(process.env.APPLE_PASS_CERT as string, "base64"),
+    process.env.APPLE_PASS_CERT_PASSWORD ?? "",
+  );
+  const cert = forge.pki.certificateFromPem(material.cert);
+  const now = new Date();
+  if (cert.validity.notBefore > now || cert.validity.notAfter <= now)
+    throw new Error("Apple pass certificate is not valid now");
+  const uid = cert.subject.attributes.find(
+    (a) => a.type === "0.9.2342.19200300.100.1.1",
+  )?.value;
+  if (
+    uid !== process.env.APPLE_PASS_TYPE_ID ||
+    cert.subject.getField("OU")?.value !== process.env.APPLE_TEAM_ID
+  ) {
+    throw new Error("Apple pass certificate identity mismatch");
+  }
+  const intermediate = forge.pki.certificateFromPem(
+    Buffer.from(process.env.APPLE_WWDR_CERT as string, "base64").toString(
+      "utf8",
+    ),
+  );
+  if (
+    intermediate.validity.notBefore > now ||
+    intermediate.validity.notAfter <= now ||
+    !new X509Certificate(material.cert).verify(new X509Certificate(forge.pki.certificateToPem(intermediate)).publicKey)
+  )
+    throw new Error("Apple certificate chain is invalid");
+  return material;
+}
+
+export function appleCertificateStatus() {
+  try {
+    const cert = forge.pki.certificateFromPem(appleSigningMaterial().cert);
+    return {
+      configured: true,
+      valid: true,
+      expiresAt: cert.validity.notAfter.toISOString(),
+      daysRemaining: Math.floor(
+        (cert.validity.notAfter.getTime() - Date.now()) / 86400000,
+      ),
+    };
+  } catch {
+    return { configured: appleConfigured(), valid: false };
+  }
 }
 
 async function passImage(name: string, w: number, h: number): Promise<Buffer> {
@@ -144,7 +199,11 @@ function renderStrip(filled: number, total: number, widthPx: number): Buffer {
 }
 
 /** Fallback strip: plain cream dots (filled) / rings (pending), no mascot. */
-function stampStripFallbackPng(filled: number, total: number, scale: number): Buffer {
+function stampStripFallbackPng(
+  filled: number,
+  total: number,
+  scale: number,
+): Buffer {
   const W = 375 * scale;
   const H = 144 * scale;
   const cols = 5;
@@ -171,18 +230,23 @@ function stampStripFallbackPng(filled: number, total: number, scale: number): Bu
   return encodePng(c);
 }
 
-function passJson(customer: Customer, stampUrl: string, webService?: {
-  url: string;
-  token: string;
-}) {
+function passJson(
+  customer: Customer,
+  stampUrl: string,
+  webService?: {
+    url: string;
+    token: string;
+  },
+) {
   const remaining = Math.max(0, STAMPS_PER_REWARD - customer.stamps);
   const json: Record<string, unknown> = {
     formatVersion: 1,
-    passTypeIdentifier: PASS_TYPE_ID,
-    teamIdentifier: TEAM_ID,
+    passTypeIdentifier: process.env.APPLE_PASS_TYPE_ID,
+    teamIdentifier: process.env.APPLE_TEAM_ID,
     organizationName: "Weekend Burger",
     description: "Weekend Club",
     serialNumber: customer.id,
+    voided: Boolean(customer.archivedAt),
     // The Weekend wordmark stays at the top; the mascot now lives in the
     // stamps, so it's dropped from up here (no logo image) to avoid redundancy.
     logoText: "weekend",
@@ -202,13 +266,26 @@ function passJson(customer: Customer, stampUrl: string, webService?: {
       // is the Weekend wordmark, so the member name goes here.
       secondaryFields: [
         { key: "name", label: "SOCIO", value: customer.name },
-        { key: "reward", label: "GRATIS", value: String(customer.rewardsAvailable) },
+        {
+          key: "reward",
+          label: "GRATIS",
+          value: String(customer.rewardsAvailable),
+        },
       ],
       auxiliaryFields: [
         { key: "code", label: "CÓDIGO", value: customer.code },
-        { key: "left", label: "FALTAN", value: remaining === 0 ? "¡Listo!" : String(remaining) },
+        {
+          key: "left",
+          label: "FALTAN",
+          value: remaining === 0 ? "¡Listo!" : String(remaining),
+        },
       ],
       backFields: [
+        {
+          key: "web-card",
+          label: "Mi tarjeta y recuperación",
+          value: `${new URL(stampUrl).origin}/card/${customer.id}`,
+        },
         {
           key: "info",
           label: "Cómo funciona",
@@ -232,16 +309,16 @@ export async function buildPkpass(
 ): Promise<Buffer> {
   if (!appleConfigured()) throw new Error("Apple Wallet not configured");
 
-  const p12 = Buffer.from(process.env.APPLE_PASS_CERT as string, "base64");
-  const password = process.env.APPLE_PASS_CERT_PASSWORD ?? "";
-  const { cert, key } = certsFromP12(p12, password);
-  const wwdr = Buffer.from(process.env.APPLE_WWDR_CERT as string, "base64").toString(
-    "utf8",
-  );
+  const { cert, key } = appleSigningMaterial();
+  const wwdr = Buffer.from(
+    process.env.APPLE_WWDR_CERT as string,
+    "base64",
+  ).toString("utf8");
 
-  const webService = apnsConfigured()
-    ? { url: `${baseUrl}/api/wallet/apple`, token: await passAuthToken(customer.id) }
-    : undefined;
+  const webService = {
+    url: `${baseUrl}/api/wallet/apple`,
+    token: await passAuthToken(customer.id),
+  };
 
   const [icon, icon2x] = await Promise.all([
     passImage("icon.png", 29, 29),
@@ -255,7 +332,9 @@ export async function buildPkpass(
 
   const pass = new PKPass(
     {
-      "pass.json": Buffer.from(JSON.stringify(passJson(customer, stampUrl, webService))),
+      "pass.json": Buffer.from(
+        JSON.stringify(passJson(customer, stampUrl, webService)),
+      ),
       "icon.png": icon,
       "icon@2x.png": icon2x,
       "strip.png": strip,

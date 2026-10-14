@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { Customer } from "@/lib/loyalty-types";
 import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
-import { addStampAction, archiveCustomerAction, restoreCustomerAction, redeemRewardAction } from "./actions";
+import {
+  addStampAction,
+  archiveCustomerAction,
+  restoreCustomerAction,
+  redeemRewardAction,
+} from "./actions";
 import { normalizeCode } from "@/lib/loyalty-code";
 
 function SubmitButton({
@@ -31,28 +36,54 @@ function shortDate(iso?: string): string {
   return `${d}/${m}`;
 }
 
-export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
+export function LoyaltyPanel({
+  customers,
+  operationKeys,
+}: {
+  customers: Customer[];
+  operationKeys: Record<string, { stamp: string; redeem: string }>;
+}) {
   const [query, setQuery] = useState("");
   const [archived, setArchived] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return customers.filter((c) => Boolean(c.archivedAt) === archived);
-    return customers.filter((c) =>
-      [c.name, c.code, ...(c.aliases ?? []), c.email ?? "", c.phone ?? ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(q) || [c.code, ...(c.aliases ?? [])].includes(normalizeCode(q)),
+    return customers.filter(
+      (c) =>
+        [c.name, c.code, ...(c.aliases ?? []), c.email ?? "", c.phone ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(q) ||
+        [c.code, ...(c.aliases ?? [])].includes(normalizeCode(q)),
     );
   }, [customers, query, archived]);
 
   return (
     <div className="lyl-panel">
       <div className="lyl-row-actions" style={{ marginBottom: 12 }}>
-        <button type="button" className={`lyl-btn ${archived ? "ghost" : "primary"}`}
-          aria-pressed={!archived} onClick={() => { setArchived(false); setQuery(""); }}>Activos</button>
-        <button type="button" className={`lyl-btn ${archived ? "primary" : "ghost"}`}
-          aria-pressed={archived} onClick={() => { setArchived(true); setQuery(""); }}>Archivados ({customers.filter(c => c.archivedAt).length})</button>
+        <button
+          type="button"
+          className={`lyl-btn ${archived ? "ghost" : "primary"}`}
+          aria-pressed={!archived}
+          onClick={() => {
+            setArchived(false);
+            setQuery("");
+          }}
+        >
+          Activos
+        </button>
+        <button
+          type="button"
+          className={`lyl-btn ${archived ? "primary" : "ghost"}`}
+          aria-pressed={archived}
+          onClick={() => {
+            setArchived(true);
+            setQuery("");
+          }}
+        >
+          Archivados ({customers.filter((c) => c.archivedAt).length})
+        </button>
       </div>
       <input
         className="lyl-search"
@@ -66,7 +97,9 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
         <p className="admin-muted">
           {customers.length === 0
             ? "Aún no hay clientes registrados."
-            : archived && !query ? "No hay tarjetas archivadas." : "Sin resultados para esa búsqueda."}
+            : archived && !query
+              ? "No hay tarjetas archivadas."
+              : "Sin resultados para esa búsqueda."}
         </p>
       ) : (
         <ul className="lyl-list">
@@ -76,7 +109,9 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
                 <div className="lyl-id">
                   <span className="lyl-name">{c.name}</span>
                   <span className="lyl-code">{c.code}</span>
-                  {c.archivedAt && <span className="lyl-metaitem">Archivado</span>}
+                  {c.archivedAt && (
+                    <span className="lyl-metaitem">Archivado</span>
+                  )}
                   {c.rewardsAvailable > 0 && (
                     <span className="lyl-reward-badge">
                       🍔 {c.rewardsAvailable} gratis
@@ -85,7 +120,10 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
                 </div>
                 <div className="lyl-stamps-mini" aria-hidden="true">
                   {Array.from({ length: STAMPS_PER_REWARD }, (_, i) => (
-                    <span key={i} className={`lyl-dot${i < c.stamps ? " on" : ""}`} />
+                    <span
+                      key={i}
+                      className={`lyl-dot${i < c.stamps ? " on" : ""}`}
+                    />
                   ))}
                 </div>
               </div>
@@ -97,7 +135,9 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
                 {(c.email || c.phone) && (
                   <span className="lyl-metaitem">{c.email || c.phone}</span>
                 )}
-                <span className="lyl-metaitem">Últ. visita {shortDate(c.lastStampAt)}</span>
+                <span className="lyl-metaitem">
+                  Últ. visita {shortDate(c.lastStampAt)}
+                </span>
                 <span className="lyl-metaitem">Total {c.totalStamps}</span>
               </div>
 
@@ -105,35 +145,59 @@ export function LoyaltyPanel({ customers }: { customers: Customer[] }) {
                 {c.archivedAt ? (
                   <form action={restoreCustomerAction}>
                     <input type="hidden" name="id" value={c.id} />
-                    <SubmitButton className="lyl-btn primary">Restaurar tarjeta</SubmitButton>
+                    <SubmitButton className="lyl-btn primary">
+                      Restaurar tarjeta
+                    </SubmitButton>
                   </form>
-                ) : (<>
-                <form action={addStampAction}>
-                  <input type="hidden" name="id" value={c.id} />
-                  <SubmitButton className="lyl-btn primary">+1 sello</SubmitButton>
-                </form>
-                <form action={redeemRewardAction}>
-                  <input type="hidden" name="id" value={c.id} />
-                  <SubmitButton className="lyl-btn ghost" disabled={c.rewardsAvailable <= 0}>
-                    Canjear
-                  </SubmitButton>
-                </form>
-                <form
-                  action={archiveCustomerAction}
-                  onSubmit={(e) => {
-                    if (
-                      !window.confirm(
-                        `¿Archivar a ${c.name}? Su código y sellos se conservan. Puedes restaurar la tarjeta en Archivados.`,
-                      )
-                    ) {
-                      e.preventDefault();
-                    }
-                  }}
-                >
-                  <input type="hidden" name="id" value={c.id} />
-                  <SubmitButton className="lyl-btn ghost">Archivar</SubmitButton>
-                </form>
-                </>)}
+                ) : (
+                  <>
+                    <form action={addStampAction}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <input
+                        type="hidden"
+                        name="operationId"
+                        value={operationKeys[c.id].stamp}
+                      />
+                      <SubmitButton className="lyl-btn primary">
+                        +1 sello
+                      </SubmitButton>
+                    </form>
+                    <form action={redeemRewardAction}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <input
+                        type="hidden"
+                        name="operationId"
+                        value={operationKeys[c.id].redeem}
+                      />
+                      <SubmitButton
+                        className="lyl-btn ghost"
+                        disabled={c.rewardsAvailable <= 0}
+                      >
+                        Canjear
+                      </SubmitButton>
+                    </form>
+                    <form
+                      action={archiveCustomerAction}
+                      onSubmit={(e) => {
+                        if (
+                          !window.confirm(
+                            `¿Archivar a ${c.name}? Su código y sellos se conservan. Puedes restaurar la tarjeta en Archivados.`,
+                          )
+                        ) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      <input type="hidden" name="id" value={c.id} />
+                      <SubmitButton className="lyl-btn ghost">
+                        Archivar
+                      </SubmitButton>
+                    </form>
+                  </>
+                )}
+                <a href={`/card/${c.id}`} className="lyl-btn ghost">
+                  Abrir / recuperar tarjeta
+                </a>
               </div>
             </li>
           ))}

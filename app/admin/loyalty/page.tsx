@@ -1,4 +1,6 @@
 import QRCode from "qrcode";
+import { randomUUID } from "node:crypto";
+import { requireAdmin } from "@/lib/admin-session";
 import { listCustomers } from "@/lib/loyalty-store";
 import { STAMPS_PER_REWARD } from "@/lib/loyalty-types";
 import { getBaseUrl } from "@/lib/base-url";
@@ -12,13 +14,17 @@ export const metadata = {
 };
 
 export default async function LoyaltyAdminPage() {
+  await requireAdmin();
   const customers = await listCustomers();
   const activeCustomers = customers.filter((c) => !c.archivedAt);
   const baseUrl = await getBaseUrl();
   const joinUrl = `${baseUrl}/join`;
   const joinQr = await QRCode.toDataURL(joinUrl, { margin: 1, width: 320 });
 
-  const totalRewardsAvailable = activeCustomers.reduce((n, c) => n + c.rewardsAvailable, 0);
+  const totalRewardsAvailable = activeCustomers.reduce(
+    (n, c) => n + c.rewardsAvailable,
+    0,
+  );
   const totalStamps = activeCustomers.reduce((n, c) => n + c.totalStamps, 0);
 
   return (
@@ -50,17 +56,31 @@ export default async function LoyaltyAdminPage() {
         </div>
 
         <details className="lyl-join">
-          <summary>QR para registrar clientes (imprímelo para las mesas)</summary>
+          <summary>
+            QR para registrar clientes (imprímelo para las mesas)
+          </summary>
           <div className="lyl-join-body">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={joinQr} alt="QR de registro" width={200} height={200} />
             <p className="admin-muted">
-              Enlaza a <code>{joinUrl}</code>. El cliente se registra y recibe su tarjeta.
+              Enlaza a <code>{joinUrl}</code>. El cliente se registra y recibe
+              su tarjeta.
             </p>
           </div>
         </details>
 
-        <LoyaltyPanel customers={customers} />
+        <p>
+          <a href="/admin/loyalty/status">Estado de datos y Apple Wallet</a>
+        </p>
+        <LoyaltyPanel
+          customers={customers}
+          operationKeys={Object.fromEntries(
+            customers.map((c) => [
+              c.id,
+              { stamp: randomUUID(), redeem: randomUUID() },
+            ]),
+          )}
+        />
       </div>
     </main>
   );

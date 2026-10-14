@@ -2,21 +2,29 @@
  * Signs a customer id for use in stamp URLs
  * (`/admin/stamp?c=<id>&t=<sig>`), so ids can't be forged or enumerated.
  *
- * Uses the same SESSION_SECRET as the admin session, with a
- * domain-separation prefix. HMAC-SHA256 via Web Crypto (mirrors
- * `lib/auth.ts`, works in both Node and Edge).
+ * Initially preserves the legacy SESSION_SECRET HMAC values in an immutable
+ * server-side token store. Existing QR and Wallet tokens then survive future
+ * administrator-session key changes. Tokens remain scoped to their serial.
  *
  * Note: stamping also requires an admin session (middleware guards
  * `/admin/*`). This signature is defense-in-depth against tampering and
  * id enumeration, not the primary access control.
  */
 
+import {
+  getCustomer,
+  missingCardTokenSerials,
+  saveCardTokens,
+  storedCardToken,
+} from "./loyalty-store";
 const enc = new TextEncoder();
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 16) {
-    throw new Error("SESSION_SECRET must be set to a string of at least 16 chars");
+    throw new Error(
+      "SESSION_SECRET must be set to a string of at least 16 chars",
+    );
   }
   return secret;
 }
@@ -40,15 +48,43 @@ async function hmac(message: string): Promise<string> {
   return b64url(sig);
 }
 
+let bootstrap: Promise<void> | undefined;
+async function preserveExistingTokens(): Promise<void> {
+  if (!bootstrap)
+    bootstrap = (async () => {
+      const serials = await missingCardTokenSerials();
+      await saveCardTokens(
+        await Promise.all(
+          serials.map(async (serial) => ({
+            serial,
+            token: await hmac(`stamp:${serial}`),
+          })),
+        ),
+      );
+    })().catch((e) => {
+      bootstrap = undefined;
+      throw e;
+    });
+  await bootstrap;
+}
+
 export async function signCustomerId(id: string): Promise<string> {
-  return hmac(`stamp:${id}`);
+  await preserveExistingTokens();
+  const existing = await storedCardToken(id);
+  if (existing) return existing;
+  const generated = await hmac(`stamp:${id}`);
+  if (await getCustomer(id)) {
+    await saveCardTokens([{ serial: id, token: generated }]);
+    return (await storedCardToken(id)) ?? generated;
+  }
+  return generated;
 }
 
 export async function verifyCustomerToken(
   id: string,
   token: string | undefined | null,
 ): Promise<boolean> {
-  if (!token) return false;
+  if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return false;
   const expected = await signCustomerId(id);
   if (expected.length !== token.length) return false;
   let r = 0;

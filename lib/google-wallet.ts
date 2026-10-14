@@ -58,13 +58,15 @@ async function accessToken(): Promise<string> {
 
 async function ensureClass(token: string, baseUrl: string): Promise<void> {
   const res = await fetch(`${API}/loyaltyClass/${CLASS_ID}`, {
+    signal: AbortSignal.timeout(10000),
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.ok) return;
   if (res.status !== 404) {
     throw new Error(`loyaltyClass GET ${res.status}: ${await res.text()}`);
   }
-  const logoUrl = process.env.GOOGLE_WALLET_LOGO_URL || `${baseUrl}/wallet-logo.png`;
+  const logoUrl =
+    process.env.GOOGLE_WALLET_LOGO_URL || `${baseUrl}/wallet-logo.png`;
   const body = {
     id: CLASS_ID,
     issuerName: "Weekend Burger",
@@ -73,15 +75,22 @@ async function ensureClass(token: string, baseUrl: string): Promise<void> {
     hexBackgroundColor: "#E94A4A",
     programLogo: {
       sourceUri: { uri: logoUrl },
-      contentDescription: { defaultValue: { language: "es", value: "Weekend Club" } },
+      contentDescription: {
+        defaultValue: { language: "es", value: "Weekend Club" },
+      },
     },
   };
   const ins = await fetch(`${API}/loyaltyClass`, {
+    signal: AbortSignal.timeout(10000),
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
-  if (!ins.ok) throw new Error(`loyaltyClass insert ${ins.status}: ${await ins.text()}`);
+  if (!ins.ok)
+    throw new Error(`loyaltyClass insert ${ins.status}: ${await ins.text()}`);
 }
 
 function objectBody(customer: Customer, stampUrl: string) {
@@ -124,22 +133,31 @@ async function upsertObject(
     "Content-Type": "application/json",
   };
   const get = await fetch(`${API}/loyaltyObject/${id}`, {
+    signal: AbortSignal.timeout(10000),
     headers: { Authorization: `Bearer ${token}` },
   });
   if (get.ok) {
     const patch = await fetch(`${API}/loyaltyObject/${id}`, {
+      signal: AbortSignal.timeout(10000),
       method: "PATCH",
       headers,
       body: JSON.stringify(body),
     });
-    if (!patch.ok) throw new Error(`loyaltyObject PATCH ${patch.status}: ${await patch.text()}`);
+    if (!patch.ok)
+      throw new Error(
+        `loyaltyObject PATCH ${patch.status}: ${await patch.text()}`,
+      );
   } else if (get.status === 404) {
     const ins = await fetch(`${API}/loyaltyObject`, {
+      signal: AbortSignal.timeout(10000),
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
-    if (!ins.ok) throw new Error(`loyaltyObject insert ${ins.status}: ${await ins.text()}`);
+    if (!ins.ok)
+      throw new Error(
+        `loyaltyObject insert ${ins.status}: ${await ins.text()}`,
+      );
   } else {
     throw new Error(`loyaltyObject GET ${get.status}: ${await get.text()}`);
   }
@@ -182,7 +200,10 @@ export async function googleSaveUrl(
 }
 
 /** Pushes the current stamp count to an existing pass (best-effort). */
-export async function googleSync(customer: Customer, stampUrl: string): Promise<void> {
+export async function googleSync(
+  customer: Customer,
+  stampUrl: string,
+): Promise<void> {
   if (!googleConfigured()) return;
   const token = await accessToken();
   await upsertObject(token, customer, stampUrl);
