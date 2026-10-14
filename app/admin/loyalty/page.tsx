@@ -13,12 +13,13 @@ export const metadata = {
 
 export default async function LoyaltyAdminPage() {
   const customers = await listCustomers();
+  const activeCustomers = customers.filter((c) => !c.archivedAt);
   const baseUrl = await getBaseUrl();
   const joinUrl = `${baseUrl}/join`;
   const joinQr = await QRCode.toDataURL(joinUrl, { margin: 1, width: 320 });
 
-  const totalRewardsAvailable = customers.reduce((n, c) => n + c.rewardsAvailable, 0);
-  const totalStamps = customers.reduce((n, c) => n + c.totalStamps, 0);
+  const totalRewardsAvailable = activeCustomers.reduce((n, c) => n + c.rewardsAvailable, 0);
+  const totalStamps = activeCustomers.reduce((n, c) => n + c.totalStamps, 0);
 
   return (
     <main className="admin-shell admin-shell-wide">
@@ -35,7 +36,7 @@ export default async function LoyaltyAdminPage() {
 
         <div className="lyl-stats">
           <div className="lyl-stat">
-            <span className="lyl-stat-num">{customers.length}</span>
+            <span className="lyl-stat-num">{activeCustomers.length}</span>
             <span className="lyl-stat-label">clientes</span>
           </div>
           <div className="lyl-stat">

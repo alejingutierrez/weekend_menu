@@ -25,18 +25,18 @@ export default async function StampPage({
         <nav className="admin-nav">
           <a href="/admin/loyalty">← Fidelidad</a>
         </nav>
-        {!valid || !customer ? (
+        {!valid || !customer || customer.archivedAt ? (
           <div className="stamp-result">
             <div className="stamp-result-emoji">⚠️</div>
-            <h2 className="stamp-result-title">Código no válido</h2>
+            <h2 className="stamp-result-title">{customer?.archivedAt ? "Tarjeta archivada" : "Código no válido"}</h2>
             <p className="stamp-result-sub">
-              Vuelve a escanear la tarjeta del cliente, o búscalo en{" "}
+              {customer?.archivedAt ? "Restaura la tarjeta en " : "Vuelve a escanear la tarjeta del cliente, o búscalo en "}
               <a href="/admin/loyalty">Fidelidad</a>.
             </p>
           </div>
         ) : (
           <StampConfirm
-            id={customer.id}
+            id={id as string}
             token={token as string}
             name={customer.name}
             stamps={customer.stamps}

@@ -34,6 +34,7 @@ yarn-error.log*
 
 # loyalty — local dev store holds customer PII, never commit
 /data/customers.json
+/.private/
 
 # wallet certificates / keys (secrets)
 /certs

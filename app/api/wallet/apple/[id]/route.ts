@@ -26,7 +26,8 @@ export async function GET(
   const stampUrl = await buildStampUrl(baseUrl, id);
 
   try {
-    const pkpass = await buildPkpass(customer, stampUrl, baseUrl);
+    // Keep the serial of an older recovered pass stable for Wallet updates.
+    const pkpass = await buildPkpass({ ...customer, id }, stampUrl, baseUrl);
     return new NextResponse(pkpass, {
       headers: {
         "Content-Type": "application/vnd.apple.pkpass",

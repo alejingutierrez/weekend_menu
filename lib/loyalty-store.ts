@@ -8,8 +8,10 @@
  */
 
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
+import { LOYALTY_RECOVERY_SCHEMA } from "./loyalty-schema";
+import { normalizeCode } from "./loyalty-code";
 import {
   STAMPS_PER_REWARD,
   type AppleRegistration,
@@ -34,9 +36,8 @@ function sql() {
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function randomCode(): string {
   let code = "";
-  const bytes = randomUUID().replace(/-/g, "");
   for (let i = 0; i < 6; i++) {
-    code += CODE_ALPHABET[parseInt(bytes[i], 16) % CODE_ALPHABET.length];
+    code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
   }
   return code;
 }
@@ -68,6 +69,9 @@ function rowToCustomer(r: Row): Customer {
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
     lastStampAt: r.last_stamp_at ? iso(r.last_stamp_at) : undefined,
+    archivedAt: r.archived_at ? iso(r.archived_at) : undefined,
+    archivedBy: (r.archived_by as string) || undefined,
+    aliases: (r.aliases as string[]) || [],
   };
 }
 
@@ -101,19 +105,22 @@ export async function ensureSchema(): Promise<void> {
   )`;
   await db`CREATE INDEX IF NOT EXISTS apple_reg_serial
     ON apple_registrations (serial)`;
+  await db.transaction(LOYALTY_RECOVERY_SCHEMA.map((statement) => db.query(statement)));
 }
 
 /* ---------- reads ---------- */
 
 export async function getCustomer(id: string): Promise<Customer | null> {
-  const rows = (await sql()`SELECT * FROM customers WHERE id = ${id}`) as Row[];
+  const rows = (await sql()`SELECT * FROM customers WHERE id = ${id}
+    OR id = (SELECT customer_id FROM customer_aliases WHERE alias_id = ${id})`) as Row[];
   return rows[0] ? rowToCustomer(rows[0]) : null;
 }
 
 export async function findByCode(code: string): Promise<Customer | null> {
-  const norm = code.trim().toUpperCase();
+  const norm = normalizeCode(code);
   if (!norm) return null;
-  const rows = (await sql()`SELECT * FROM customers WHERE code = ${norm}`) as Row[];
+  const rows = (await sql()`SELECT * FROM customers WHERE code = ${norm}
+    OR id = (SELECT customer_id FROM customer_aliases WHERE alias_code = ${norm})`) as Row[];
   return rows[0] ? rowToCustomer(rows[0]) : null;
 }
 
@@ -125,7 +132,9 @@ export async function findByContact(
   const p = normPhone(phone);
   if (!e && !p) return null;
   const rows = (await sql()`
-    SELECT * FROM customers
+    SELECT c.*, ARRAY(SELECT a.alias_code FROM customer_aliases a
+                     WHERE a.customer_id = c.id ORDER BY a.alias_code) AS aliases
+    FROM customers c
     WHERE (${e} <> '' AND lower(email) = ${e})
        OR (${p} <> '' AND phone = ${p})
     LIMIT 1`) as Row[];
@@ -134,7 +143,9 @@ export async function findByContact(
 
 export async function listCustomers(): Promise<Customer[]> {
   const rows = (await sql()`
-    SELECT * FROM customers
+    SELECT c.*, ARRAY(SELECT a.alias_code FROM customer_aliases a
+                     WHERE a.customer_id = c.id ORDER BY a.alias_code) AS aliases
+    FROM customers c
     ORDER BY COALESCE(last_stamp_at, created_at) DESC`) as Row[];
   return rows.map(rowToCustomer);
 }
@@ -163,6 +174,7 @@ export async function createCustomer(input: {
         RETURNING *`) as Row[];
       return rowToCustomer(rows[0]);
     } catch (e) {
+      if ((e as { code?: string }).code !== "23505") throw e;
       // A racing insert with the same contact → return theirs.
       const dup = await findByContact(email ?? undefined, phone ?? undefined);
       if (dup) return dup;
@@ -179,9 +191,14 @@ export async function createCustomer(input: {
  */
 export async function addStamp(
   id: string,
+  actor = "admin",
 ): Promise<{ customer: Customer; rewardEarned: boolean } | null> {
-  const rows = (await sql()`
-    WITH old AS (SELECT stamps AS s FROM customers WHERE id = ${id} FOR UPDATE)
+  const db = sql();
+  const results = await db.transaction([
+    db`SELECT set_config('weekend.actor', ${actor}, true)`,
+    db`
+    WITH old AS (SELECT stamps AS s FROM customers
+      WHERE id = ${id} AND archived_at IS NULL FOR UPDATE)
     UPDATE customers c SET
       total_stamps = c.total_stamps + 1,
       last_stamp_at = now(),
@@ -194,7 +211,9 @@ export async function addStamp(
         THEN old.s + 1 - ${STAMPS_PER_REWARD} ELSE old.s + 1 END
     FROM old
     WHERE c.id = ${id}
-    RETURNING c.*, (old.s + 1 >= ${STAMPS_PER_REWARD}) AS reward_earned`) as Row[];
+    RETURNING c.*, (old.s + 1 >= ${STAMPS_PER_REWARD}) AS reward_earned`,
+  ]);
+  const rows = results[1] as Row[];
   if (!rows[0]) return null;
   const customer = rowToCustomer(rows[0]);
   const rewardEarned = rows[0].reward_earned === true;
@@ -203,32 +222,52 @@ export async function addStamp(
 }
 
 /** Redeems one available reward (free burger). Null if none available. */
-export async function redeemReward(id: string): Promise<Customer | null> {
-  const rows = (await sql()`
+export async function redeemReward(id: string, actor = "admin"): Promise<Customer | null> {
+  const db = sql();
+  const results = await db.transaction([
+    db`SELECT set_config('weekend.actor', ${actor}, true)`,
+    db`
     UPDATE customers
     SET rewards_available = rewards_available - 1, updated_at = now()
-    WHERE id = ${id} AND rewards_available > 0
-    RETURNING *`) as Row[];
+    WHERE id = ${id} AND rewards_available > 0 AND archived_at IS NULL
+    RETURNING *`,
+  ]);
+  const rows = results[1] as Row[];
   if (!rows[0]) return null;
   const customer = rowToCustomer(rows[0]);
   await syncWalletsBestEffort(customer);
   return customer;
 }
 
-/** Permanently deletes a customer and their device registrations. */
-export async function deleteCustomer(id: string): Promise<boolean> {
+/** Reversible archival: never erase the card, stamps or Wallet registrations. */
+export async function archiveCustomer(id: string, actor: string): Promise<boolean> {
   const db = sql();
-  await db`DELETE FROM apple_registrations WHERE serial = ${id}`;
-  const rows = (await db`DELETE FROM customers WHERE id = ${id} RETURNING id`) as Row[];
-  return rows.length > 0;
+  const results = await db.transaction([
+    db`SELECT set_config('weekend.actor', ${actor}, true)`,
+    db`UPDATE customers SET archived_at = now(), archived_by = ${actor}, updated_at = now()
+       WHERE id = ${id} AND archived_at IS NULL RETURNING id`,
+  ]);
+  return results[1].length > 0;
 }
 
-/** Inserts existing customers verbatim (migration). Skips dup id/email/phone. */
+export async function restoreCustomer(id: string, actor: string): Promise<boolean> {
+  const db = sql();
+  const results = await db.transaction([
+    db`SELECT set_config('weekend.actor', ${actor}, true)`,
+    db`UPDATE customers SET archived_at = NULL, archived_by = NULL, updated_at = now()
+       WHERE id = ${id} AND archived_at IS NOT NULL RETURNING id`,
+  ]);
+  return results[1].length > 0;
+}
+
+/** Imports without overwriting balances and reports every unresolved conflict. */
 export async function bulkImport(
   customers: Customer[],
-): Promise<{ inserted: number }> {
+): Promise<{ inserted: number; alreadyPresent: number; conflicts: string[] }> {
   const db = sql();
   let inserted = 0;
+  let alreadyPresent = 0;
+  const conflicts: string[] = [];
   for (const c of customers) {
     const email = (c.email ?? "").trim() || null;
     const phone = normPhone(c.phone) || null;
@@ -243,11 +282,14 @@ export async function bulkImport(
         ON CONFLICT (id) DO NOTHING
         RETURNING id`) as Row[];
       if (r.length) inserted++;
-    } catch {
-      // duplicate email/phone → already represented; skip.
+      else alreadyPresent++;
+    } catch (e) {
+      if ((e as { code?: string }).code !== "23505") throw e;
+      // Keep a visible inventory of unresolved cards. Never silently discard them.
+      conflicts.push(c.code);
     }
   }
-  return { inserted };
+  return { inserted, alreadyPresent, conflicts };
 }
 
 /** Propagates a change to the customer's wallet passes; never throws. */
@@ -285,7 +327,8 @@ export async function getRegistrationsForSerial(
   serial: string,
 ): Promise<AppleRegistration[]> {
   const rows = (await sql()`
-    SELECT * FROM apple_registrations WHERE serial = ${serial}`) as Row[];
+    SELECT * FROM apple_registrations WHERE serial = ${serial}
+    OR serial IN (SELECT alias_id FROM customer_aliases WHERE customer_id = ${serial})`) as Row[];
   return rows.map((r) => ({
     serial: r.serial as string,
     deviceLibraryId: r.device_library_id as string,
@@ -301,7 +344,8 @@ export async function getSerialsForDevice(
   const rows = (await sql()`
     SELECT r.serial AS serial, c.updated_at AS updated_at
     FROM apple_registrations r
-    JOIN customers c ON c.id = r.serial
+    JOIN customers c ON c.id = r.serial OR c.id =
+      (SELECT customer_id FROM customer_aliases WHERE alias_id = r.serial)
     WHERE r.device_library_id = ${deviceLibraryId}`) as Row[];
   let lastUpdated = updatedSince ?? "1970-01-01T00:00:00.000Z";
   const serials: string[] = [];

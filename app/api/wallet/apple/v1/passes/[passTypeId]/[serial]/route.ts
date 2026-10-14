@@ -26,7 +26,7 @@ export async function GET(
 
   const baseUrl = await getBaseUrl();
   const stampUrl = await buildStampUrl(baseUrl, serial);
-  const pkpass = await buildPkpass(customer, stampUrl, baseUrl);
+  const pkpass = await buildPkpass({ ...customer, id: serial }, stampUrl, baseUrl);
 
   return new NextResponse(pkpass, {
     headers: {

@@ -24,6 +24,9 @@ export async function joinLoyalty(
     email: email || undefined,
     phone: phone || undefined,
   });
+  if (customer.archivedAt) {
+    return { error: "Tu tarjeta está archivada. Pide en caja que la restauren; tu código y sellos están guardados." };
+  }
 
   // Outside try/catch on purpose: redirect() throws internally.
   redirect(`/card/${customer.id}`);
