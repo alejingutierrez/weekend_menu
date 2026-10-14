@@ -86,6 +86,10 @@ test:integration` exercises the actual backend and Apple routes against an
 explicit isolated Neon branch. Supply `TEST_DATABASE_URL` and `TEST_BRANCH_ID`
 securely; the runner refuses production and checks the actual Neon branch ID.
 Fixtures have no real Apple signing credentials and never push to real devices.
+After a build, `npm run test:built` starts the compiled Next server on loopback
+against the same isolated branch, and checks card rendering, pass generation,
+authenticated health/status and rejection without credentials. This catches
+runtime/compiler differences that direct TypeScript integration tests cannot.
 
 CI on every push/PR runs the offline suite, TypeScript and production compilation
 with Node 24. Validate schema changes on an isolated branch before applying them

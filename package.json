@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node --conditions=react-server --import ./scripts/test-loader.mjs --test tests/*.test.mjs",
-    "test:integration": "node --conditions=react-server --import ./scripts/test-loader.mjs --test tests/loyalty.integration.mjs"
+    "test:integration": "node --conditions=react-server --import ./scripts/test-loader.mjs --test tests/loyalty.integration.mjs",
+    "test:built": "node scripts/smoke-built-app.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

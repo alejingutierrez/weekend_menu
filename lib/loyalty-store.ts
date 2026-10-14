@@ -137,15 +137,17 @@ export async function ensureSchema(): Promise<void> {
 /* ---------- reads ---------- */
 
 export async function getCustomer(id: string): Promise<Customer | null> {
-  const rows = (await (await sql())`SELECT * FROM customers WHERE id = ${id}
+  const db = await sql();
+  const rows = (await db`SELECT * FROM customers WHERE id = ${id}
     OR id = (SELECT customer_id FROM customer_aliases WHERE alias_id = ${id})`) as Row[];
   return rows[0] ? rowToCustomer(rows[0]) : null;
 }
 
 export async function findByCode(code: string): Promise<Customer | null> {
+  const db = await sql();
   const norm = normalizeCode(code);
   if (!norm) return null;
-  const rows = (await (await sql())`SELECT * FROM customers WHERE code = ${norm}
+  const rows = (await db`SELECT * FROM customers WHERE code = ${norm}
     OR id = (SELECT customer_id FROM customer_aliases WHERE alias_code = ${norm})`) as Row[];
   return rows[0] ? rowToCustomer(rows[0]) : null;
 }
@@ -159,7 +161,8 @@ export async function recordFailedScan(
   const id =
     reference && /^[0-9a-f-]{36}$/i.test(reference) ? reference : "unknown-qr";
   try {
-    await (await sql())`INSERT INTO loyalty_events(customer_id, operation, actor, after_state)
+    const db = await sql();
+    await db`INSERT INTO loyalty_events(customer_id, operation, actor, after_state)
       VALUES (${id}, 'SCAN_FAILED', ${actor}, ${JSON.stringify({ reason })}::jsonb)`;
   } catch {
     console.error("[loyalty] could not record failed scan", { reason });
@@ -170,10 +173,11 @@ export async function findByContact(
   email?: string,
   phone?: string,
 ): Promise<Customer | null> {
+  const db = await sql();
   const e = normEmail(email);
   const p = normPhone(phone);
   if (!e && !p) return null;
-  const rows = (await (await sql())`
+  const rows = (await db`
     SELECT c.*, ARRAY(SELECT a.alias_code FROM customer_aliases a
                      WHERE a.customer_id = c.id ORDER BY a.alias_code) AS aliases
     FROM customers c
@@ -185,7 +189,8 @@ export async function findByContact(
 }
 
 export async function listCustomers(): Promise<Customer[]> {
-  const rows = (await (await sql())`
+  const db = await sql();
+  const rows = (await db`
     SELECT c.*, ARRAY(SELECT a.alias_code FROM customer_aliases a
                      WHERE a.customer_id = c.id ORDER BY a.alias_code) AS aliases
     FROM customers c
@@ -367,7 +372,8 @@ export async function bulkImport(
 export async function addAppleRegistration(
   reg: AppleRegistration,
 ): Promise<boolean> {
-  const rows = await (await sql())`
+  const db = await sql();
+  const rows = await db`
     INSERT INTO apple_registrations (device_library_id, serial, push_token)
     VALUES (${reg.deviceLibraryId}, ${reg.serial}, ${reg.pushToken})
     ON CONFLICT (device_library_id, serial)
@@ -380,7 +386,8 @@ export async function removeAppleRegistration(
   deviceLibraryId: string,
   serial: string,
 ): Promise<boolean> {
-  const rows = (await (await sql())`
+  const db = await sql();
+  const rows = (await db`
     DELETE FROM apple_registrations
     WHERE device_library_id = ${deviceLibraryId} AND serial = ${serial}
     RETURNING serial`) as Row[];
@@ -390,7 +397,8 @@ export async function removeAppleRegistration(
 export async function getRegistrationsForSerial(
   serial: string,
 ): Promise<AppleRegistration[]> {
-  const rows = (await (await sql())`
+  const db = await sql();
+  const rows = (await db`
     SELECT * FROM apple_registrations WHERE revoked_at IS NULL AND (serial = ${serial}
     OR serial IN (SELECT alias_id FROM customer_aliases WHERE customer_id = ${serial}))`) as Row[];
   return rows.map((r) => ({
@@ -405,7 +413,8 @@ export async function getSerialsForDevice(
   deviceLibraryId: string,
   updatedSince?: string,
 ): Promise<{ serials: string[]; lastUpdated: string }> {
-  const rows = (await (await sql())`
+  const db = await sql();
+  const rows = (await db`
     SELECT r.serial AS serial, to_char(GREATEST(c.updated_at,r.updated_at) AT TIME ZONE 'UTC',
       'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS update_tag
     FROM apple_registrations r
@@ -423,13 +432,15 @@ export async function getSerialsForDevice(
 
 /** Retire invalid Apple devices without erasing their registration history. */
 export async function revokeApplePushToken(token: string): Promise<void> {
-  await (await sql())`UPDATE apple_registrations SET revoked_at=clock_timestamp(), updated_at=clock_timestamp()
+  const db = await sql();
+  await db`UPDATE apple_registrations SET revoked_at=clock_timestamp(), updated_at=clock_timestamp()
     WHERE push_token=${token} AND revoked_at IS NULL`;
 }
 
 export async function claimWalletJobs(limit: number, customerId?: string) {
+  const db = await sql();
   const lease = randomUUID();
-  const rows = await (await sql())`WITH due AS (
+  const rows = await db`WITH due AS (
     SELECT customer_id FROM wallet_sync_jobs WHERE available_at<=now()
       AND (locked_until IS NULL OR locked_until<now()) AND (${customerId ?? null}::text IS NULL OR customer_id=${customerId ?? null})
     ORDER BY available_at LIMIT ${Math.min(25, Math.max(1, limit))} FOR UPDATE SKIP LOCKED)
@@ -457,14 +468,16 @@ export async function finishWalletJob(
 }
 
 export async function walletQueueStatus() {
+  const db = await sql();
   const rows =
-    await (await sql())`SELECT count(*)::int AS pending, count(*) FILTER(WHERE attempts>0)::int AS retries FROM wallet_sync_jobs`;
+    await db`SELECT count(*)::int AS pending, count(*) FILTER(WHERE attempts>0)::int AS retries FROM wallet_sync_jobs`;
   return { pending: Number(rows[0].pending), retries: Number(rows[0].retries) };
 }
 
 export async function missingCardTokenSerials(): Promise<string[]> {
+  const db = await sql();
   const rows =
-    await (await sql())`SELECT serial FROM (SELECT id AS serial FROM customers UNION SELECT alias_id FROM customer_aliases) cards
+    await db`SELECT serial FROM (SELECT id AS serial FROM customers UNION SELECT alias_id FROM customer_aliases) cards
     WHERE NOT EXISTS(SELECT 1 FROM loyalty_card_tokens t WHERE t.serial=cards.serial)`;
   return rows.map((r) => String(r.serial));
 }
@@ -472,20 +485,23 @@ export async function missingCardTokenSerials(): Promise<string[]> {
 export async function saveCardTokens(
   tokens: { serial: string; token: string }[],
 ): Promise<void> {
+  const db = await sql();
   if (!tokens.length) return;
-  await (await sql())`INSERT INTO loyalty_card_tokens(serial,token)
+  await db`INSERT INTO loyalty_card_tokens(serial,token)
     SELECT serial,token FROM jsonb_to_recordset(${JSON.stringify(tokens)}::jsonb) AS t(serial text,token text)
     ON CONFLICT DO NOTHING`;
 }
 
 export async function storedCardToken(serial: string): Promise<string | null> {
+  const db = await sql();
   const rows =
-    await (await sql())`SELECT token FROM loyalty_card_tokens WHERE serial=${serial}`;
+    await db`SELECT token FROM loyalty_card_tokens WHERE serial=${serial}`;
   return rows[0] ? String(rows[0].token) : null;
 }
 
 export async function loyaltyHealth() {
-  const rows = await (await sql())`SELECT
+  const db = await sql();
+  const rows = await db`SELECT
     (SELECT count(*)::int FROM customers) AS cards,
     (SELECT COALESCE(sum(total_stamps),0)::int FROM customers) AS total_stamps,
     (SELECT count(*)::int FROM apple_registrations WHERE revoked_at IS NULL) AS devices,
@@ -514,8 +530,9 @@ export async function loyaltyHealth() {
 }
 
 export async function readLoyaltyBackup(): Promise<LoyaltyBackup> {
+  const db = await sql();
   const rows =
-    await (await sql())`SELECT jsonb_build_object('version',1,'createdAt',clock_timestamp(),
+    await db`SELECT jsonb_build_object('version',1,'createdAt',clock_timestamp(),
     'customers',(SELECT COALESCE(jsonb_agg(to_jsonb(c) ORDER BY id),'[]') FROM customers c),
     'aliases',(SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY alias_id),'[]') FROM customer_aliases a),
     'registrations',(SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY device_library_id,serial),'[]') FROM apple_registrations r),
@@ -529,11 +546,13 @@ export async function recordLoyaltyBackup(
   digest: string,
   cards: number,
 ) {
-  await (await sql())`INSERT INTO loyalty_backup_runs(blob_url,digest,cards) VALUES(${url},${digest},${cards})`;
+  const db = await sql();
+  await db`INSERT INTO loyalty_backup_runs(blob_url,digest,cards) VALUES(${url},${digest},${cards})`;
 }
 export async function lastLoyaltyBackup() {
+  const db = await sql();
   const rows =
-    await (await sql())`SELECT cards,verified_at FROM loyalty_backup_runs ORDER BY verified_at DESC LIMIT 1`;
+    await db`SELECT cards,verified_at FROM loyalty_backup_runs ORDER BY verified_at DESC LIMIT 1`;
   return rows[0]
     ? { cards: Number(rows[0].cards), verifiedAt: iso(rows[0].verified_at) }
     : null;
