@@ -77,11 +77,18 @@ test("Wallet pushes use the pass certificate, bounded requests, empty payload an
     assert.ok(connectedOptions.cert.includes("BEGIN CERTIFICATE"));
     assert.ok(connectedOptions.key.includes("PRIVATE KEY"));
     assert.equal(headers["apns-topic"], "pass.fixture.weekend");
+    assert.equal(headers["apns-priority"], "5");
+    assert.equal(headers["apns-expiration"], undefined);
     assert.equal(headers.authorization, undefined);
     assert.equal(payload, "{}");
     assert.equal(results.length, 1);
     assert.equal(results[0].status, 410);
     assert.equal(results[0].reason, "Unregistered");
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    await sendPassUpdates(["b".repeat(64)], { priority: 10, expiresAt });
+    assert.equal(headers["apns-priority"], "10");
+    assert.equal(headers["apns-expiration"], String(expiresAt));
+    assert.equal(payload, "{}");
   } finally {
     mock.restoreAll();
   }

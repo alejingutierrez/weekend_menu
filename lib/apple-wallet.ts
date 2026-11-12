@@ -291,6 +291,11 @@ function passJson(
           label: "Cómo funciona",
           value: `Junta ${STAMPS_PER_REWARD} sellos y llévate una hamburguesa gratis. Muestra el código de esta tarjeta en caja para que te sellen.`,
         },
+        {
+          key: "refresh-help",
+          label: "Actualizar saldo",
+          value: "En los detalles de este pase, desliza hacia abajo para actualizar tus sellos y premios.",
+        },
       ],
     },
   };

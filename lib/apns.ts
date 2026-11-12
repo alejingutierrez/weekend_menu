@@ -5,6 +5,7 @@ import { appleSigningMaterial } from "./apple-wallet";
 export type ApnsResult = { pushToken: string; status: number; reason?: string };
 export async function sendPassUpdates(
   pushTokens: string[],
+  { priority = 5, expiresAt }: { priority?: 5 | 10; expiresAt?: number } = {},
 ): Promise<ApnsResult[]> {
   if (!pushTokens.length) return [];
   const { cert, key } = appleSigningMaterial();
@@ -20,6 +21,11 @@ export async function sendPassUpdates(
   });
   client.on("error", () => {});
   client.setTimeout(8000, () => client.destroy());
+  const headers: http2.OutgoingHttpHeaders = {
+    "apns-topic": process.env.APPLE_PASS_TYPE_ID,
+    "apns-priority": String(priority),
+  };
+  if (expiresAt !== undefined) headers["apns-expiration"] = String(expiresAt);
   const unique = [...new Set(pushTokens)],
     results: ApnsResult[] = new Array(unique.length);
   let next = 0;
@@ -37,8 +43,7 @@ export async function sendPassUpdates(
         const req = client.request({
           ":method": "POST",
           ":path": `/3/device/${pushToken}`,
-          "apns-topic": process.env.APPLE_PASS_TYPE_ID,
-          "apns-priority": "5",
+          ...headers,
         });
         req.setTimeout(7000, () => {
           finish("timeout");
