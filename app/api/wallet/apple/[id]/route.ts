@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCustomer } from "@/lib/loyalty-store";
 import { getBaseUrl } from "@/lib/base-url";
 import { buildStampUrl } from "@/lib/stamp-link";
+import { walletOriginMove } from "@/lib/wallet-origin-move";
 import { appleConfigured, buildPkpass } from "@/lib/apple-wallet";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export async function GET(
       );
     }
 
-    const baseUrl = await getBaseUrl();
+    const baseUrl = walletOriginMove(id)?.origin ?? await getBaseUrl();
     const stampUrl = await buildStampUrl(baseUrl, id);
 
     try {

@@ -10,8 +10,9 @@ export class RequestLimitError extends Error {
   }
 }
 export function trustedClientIp(h: Headers): string {
-  // Vercel overwrites this header. Local/untrusted deployments share a bucket.
-  if (process.env.VERCEL !== "1") return "untrusted-client";
+  // Vercel and the AWS ingress both normalize this header before forwarding.
+  if (process.env.VERCEL !== "1" && process.env.WEEKEND_CLOUDFRONT !== "1")
+    return "untrusted-client";
   const value = (h.get("x-forwarded-for") ?? "").split(",")[0].trim();
   return isIP(value) ? value : "unknown-client";
 }

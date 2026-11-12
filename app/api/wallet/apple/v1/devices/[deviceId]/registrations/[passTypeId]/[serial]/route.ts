@@ -16,6 +16,7 @@ import {
 import { enforceRequestLimits, RequestLimitError } from "@/lib/request-limits";
 import { readLimitedJson } from "@/lib/limited-json";
 import { verifyApplePassAuth } from "@/lib/apple-wallet";
+import { recordWalletOriginRequest } from "@/lib/wallet-origin-move";
 
 import { validAppleIdentifiers } from "@/lib/apple-protocol";
 
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         pushToken: body.pushToken,
         registeredAt: new Date().toISOString(),
       });
+      recordWalletOriginRequest(serial, "registration", req.headers, { id: deviceId, pushToken: body.pushToken });
       // 201 = newly registered (Apple accepts 200 for already-registered too).
       return new NextResponse(null, { status: inserted ? 201 : 200 });
     } catch (e) {

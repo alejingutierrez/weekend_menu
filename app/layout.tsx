@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Sora } from "next/font/google";
+import { PRODUCTION_LOYALTY_ORIGIN } from "@/lib/loyalty-config";
 import "./globals.css";
 
 const sora = Sora({
@@ -9,16 +10,18 @@ const sora = Sora({
   variable: "--font-sora",
 });
 
+const publicOrigin = new URL(process.env.PUBLIC_BASE_URL || PRODUCTION_LOYALTY_ORIGIN);
+
 export const metadata: Metadata = {
   title: "Weekend Burger · Menú",
   description:
     "Aquí se viene a comer rico y ensuciarse un poco las manos. Burgers, fries y postres.",
-  metadataBase: new URL("https://weekend-menu.vercel.app"),
+  metadataBase: publicOrigin,
   openGraph: {
     type: "website",
     title: "Weekend Burger · Menú",
     description: "Aquí se viene a comer rico y ensuciarse un poco las manos.",
-    url: "https://weekend-menu.vercel.app/",
+    url: publicOrigin,
   },
   twitter: {
     card: "summary_large_image",

@@ -1,0 +1,294 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Weekend Menu origin, application host, PostgreSQL and private storage.
+
+Parameters:
+  AppZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+  SecondDatabaseZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+  CloudFrontPrefixList:
+    Type: String
+    AllowedPattern: 'pl-[0-9a-f]+'
+  PostgreSqlMajorVersion:
+    Type: String
+    AllowedPattern: '[0-9]+'
+  EnableDelivery:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'false'
+  AppAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Conditions:
+  CreateDelivery: !Equals [!Ref EnableDelivery, 'true']
+
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.81.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  AttachInternetGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Network
+      InternetGatewayId: !Ref InternetGateway
+  EgressSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.81.0.0/26
+      AvailabilityZone: !Ref AppZone
+  EgressRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+  EgressRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachInternetGateway
+    Properties:
+      RouteTableId: !Ref EgressRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  EgressRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref EgressSubnet
+      RouteTableId: !Ref EgressRouteTable
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.81.0.64/26
+      AvailabilityZone: !Ref AppZone
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Network
+      CidrBlock: 10.81.0.128/26
+      AvailabilityZone: !Ref SecondDatabaseZone
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Accept web traffic only from the CloudFront origin network
+      VpcId: !Ref Network
+      SecurityGroupIngress: !If
+        - CreateDelivery
+        - - IpProtocol: tcp
+            FromPort: 8080
+            ToPort: 8080
+            SourcePrefixListId: !Ref CloudFrontPrefixList
+        - !Ref AWS::NoValue
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Accept PostgreSQL only from the Weekend Menu app
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+  DatabaseSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Weekend Menu PostgreSQL
+      SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB]
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: postgres
+      EngineVersion: !Ref PostgreSqlMajorVersion
+      DBInstanceClass: db.t4g.micro
+      DBName: weekend
+      MasterUsername: weekend_owner
+      ManageMasterUserPassword: true
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DeletionProtection: true
+      MultiAZ: false
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DatabaseSubnets
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+      AvailabilityZone: !Ref AppZone
+  Storage:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+  StorageTlsPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Storage
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt Storage.Arn, !Sub '${Storage.Arn}/*']
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+  RuntimeConfiguration:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Weekend Menu runtime configuration. Provisioned before the service starts.
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: bootstrap
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Policies:
+        - PolicyName: WeekendRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref RuntimeConfiguration
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub '${Storage.Arn}/releases/*'
+                  - !Sub '${Storage.Arn}/legacy-private/customers.json'
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource:
+                  - !Sub '${Storage.Arn}/menu/menu.json'
+                  - !Sub '${Storage.Arn}/loyalty-backups/*'
+  AppProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref AppRole]
+  App:
+    Type: AWS::EC2::Instance
+    DependsOn: EgressRouteAssociation
+    Properties:
+      ImageId: !Ref AppAmi
+      InstanceType: t4g.small
+      SubnetId: !Ref EgressSubnet
+      SecurityGroupIds: [!Ref AppSecurityGroup]
+      IamInstanceProfile: !Ref AppProfile
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      CreditSpecification:
+        CPUCredits: standard
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            Encrypted: true
+            DeleteOnTermination: true
+            VolumeSize: 20
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: weekend-menu
+  AppPublicEgressIp:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachInternetGateway
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref App
+  CloudFrontOrigin:
+    Type: AWS::CloudFront::VpcOrigin
+    Condition: CreateDelivery
+    DependsOn: AppPublicEgressIp
+    Properties:
+      VpcOriginEndpointConfig:
+        Name: !Sub '${AWS::StackName}-origin'
+        Arn: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${App}'
+        HTTPPort: 8080
+        HTTPSPort: 443
+        OriginProtocolPolicy: http-only
+        OriginSSLProtocols: [TLSv1.2]
+  Delivery:
+    Type: AWS::CloudFront::Distribution
+    Condition: CreateDelivery
+    UpdateReplacePolicy: Retain
+    Properties:
+      DistributionConfig:
+        Comment: Weekend Menu and permanent Apple Wallet endpoints
+        Enabled: true
+        IPV6Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: weekend-app
+            DomainName: !GetAtt App.PrivateDnsName
+            VpcOriginConfig:
+              VpcOriginId: !GetAtt CloudFrontOrigin.Id
+        DefaultCacheBehavior:
+          TargetOriginId: weekend-app
+          ViewerProtocolPolicy: https-only
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          Compress: true
+        CustomErrorResponses:
+          - {ErrorCode: 403, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 404, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 500, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 502, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 503, ErrorCachingMinTTL: 0}
+          - {ErrorCode: 504, ErrorCachingMinTTL: 0}
+
+Outputs:
+  AppInstanceId:
+    Value: !Ref App
+  AppSecurityGroupId:
+    Value: !Ref AppSecurityGroup
+  VpcId:
+    Value: !Ref Network
+  DistributionId:
+    Condition: CreateDelivery
+    Value: !Ref Delivery
+  PublicOrigin:
+    Condition: CreateDelivery
+    Value: !Sub 'https://${Delivery.DomainName}'
+  StorageBucket:
+    Value: !Ref Storage
+  RuntimeSecretArn:
+    Value: !Ref RuntimeConfiguration
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  DatabaseMasterSecretArn:
+    Value: !GetAtt Database.MasterUserSecret.SecretArn

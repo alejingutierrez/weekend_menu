@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Weekend Menu HTTPS gateway with a private link to the app host.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  AppSubnet:
+    Type: AWS::EC2::Subnet::Id
+  SecondSubnet:
+    Type: AWS::EC2::Subnet::Id
+  AppPrivateAddress:
+    Type: String
+    AllowedPattern: '10\.81\.0\.[0-9]+'
+
+Resources:
+  ServiceNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties:
+      Name: weekend-menu-ingress
+  OriginService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: weekend-origin
+      NamespaceId: !Ref ServiceNamespace
+      Type: HTTP
+  OriginInstance:
+    Type: AWS::ServiceDiscovery::Instance
+    Properties:
+      InstanceId: weekend-app
+      ServiceId: !GetAtt OriginService.Id
+      InstanceAttributes:
+        AWS_INSTANCE_IPV4: !Ref AppPrivateAddress
+        AWS_INSTANCE_PORT: '8081'
+  LinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Weekend API Gateway private origin connection
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 8081
+          ToPort: 8081
+          DestinationSecurityGroupId: !Ref AppSecurityGroup
+  OriginIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AppSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8081
+      ToPort: 8081
+      SourceSecurityGroupId: !Ref LinkSecurityGroup
+  PrivateLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: weekend-origin
+      SecurityGroupIds: [!Ref LinkSecurityGroup]
+      SubnetIds: [!Ref AppSubnet, !Ref SecondSubnet]
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: weekend-menu
+      ProtocolType: HTTP
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    DependsOn: OriginInstance
+    Properties:
+      ApiId: !Ref Api
+      ConnectionId: !Ref PrivateLink
+      ConnectionType: VPC_LINK
+      IntegrationMethod: ANY
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !GetAtt OriginService.Arn
+      PayloadFormatVersion: '1.0'
+      RequestParameters:
+        'overwrite:path': '$request.path'
+        'overwrite:header.x-weekend-edge-host': '$context.domainName'
+        'overwrite:header.x-weekend-edge-client': '$context.identity.sourceIp'
+  Route:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: '$default'
+      Target: !Sub 'integrations/${Integration}'
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    DependsOn: Route
+    Properties:
+      ApiId: !Ref Api
+      StageName: '$default'
+      AutoDeploy: true
+
+Outputs:
+  PublicOrigin:
+    Value: !GetAtt Api.ApiEndpoint

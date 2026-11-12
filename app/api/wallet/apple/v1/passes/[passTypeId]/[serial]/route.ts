@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCustomer } from "@/lib/loyalty-store";
 import { getBaseUrl } from "@/lib/base-url";
 import { buildStampUrl } from "@/lib/stamp-link";
+import { recordWalletOriginRequest, walletOriginMove, walletMoveUpdateTime } from "@/lib/wallet-origin-move";
 import {
   appleConfigured,
   buildPkpass,
@@ -34,11 +35,12 @@ export async function GET(
     const customer = await getCustomer(serial);
     if (!customer) return new NextResponse(null, { status: 404 });
 
-    const baseUrl = await getBaseUrl();
+    const baseUrl = walletOriginMove(serial)?.origin ?? await getBaseUrl();
     const stampUrl = await buildStampUrl(baseUrl, serial);
-    const modified = new Date(customer.updatedAt).toUTCString();
+    const updatedAt = walletMoveUpdateTime(serial, customer.updatedAt);
+    const modified = new Date(updatedAt).toUTCString();
     if (
-      Date.parse(customer.updatedAt) <=
+      Date.parse(updatedAt) <=
       Date.parse(req.headers.get("if-modified-since") ?? "")
     )
       return new NextResponse(null, {
@@ -59,10 +61,11 @@ export async function GET(
       });
     }
 
+    recordWalletOriginRequest(serial, "pass", req.headers);
     return new NextResponse(pkpass, {
       headers: {
         "Content-Type": "application/vnd.apple.pkpass",
-        "Last-Modified": new Date(customer.updatedAt).toUTCString(),
+        "Last-Modified": modified,
         "Cache-Control": "no-store",
       },
     });

@@ -1,5 +1,5 @@
 /**
- * Customer / loyalty storage on Postgres (Neon).
+ * Customer / loyalty storage on PostgreSQL.
  *
  * Balance changes and durable operation results commit atomically, so concurrent stamps
  * or registrations can't clobber each other (the problem the old
@@ -9,7 +9,7 @@
 
 import "server-only";
 import { randomInt, randomUUID } from "node:crypto";
-import { neon } from "@neondatabase/serverless";
+import { loyaltyEnvironment, loyaltySql as sql } from "./loyalty-database";
 import { LOYALTY_RECOVERY_SCHEMA } from "./loyalty-schema";
 import { normalizeCode } from "./loyalty-code";
 import {
@@ -26,45 +26,13 @@ import {
   MAX_WALLET_ATTEMPTS,
 } from "./loyalty-security-schema";
 import { updatedSerials } from "./apple-protocol";
+import { walletMoveUpdateTime } from "./wallet-origin-move";
 import type { LoyaltyBackup } from "./loyalty-backup-format";
-import { assertLoyaltyDatabase, assertLoyaltyBranch } from "./loyalty-config";
 import {
   STAMPS_PER_REWARD,
   type AppleRegistration,
   type Customer,
 } from "./loyalty-types";
-
-const DB_URL =
-  process.env.LOYALTY_DATABASE_URL ||
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_URL;
-assertLoyaltyDatabase(DB_URL, process.env.VERCEL_ENV);
-const client = DB_URL ? neon(DB_URL) : null;
-
-async function sql() {
-  if (!client) {
-    throw new Error(
-      "DATABASE_URL is not set — the loyalty store needs Postgres (Neon).",
-    );
-  }
-  const rows =
-    await client`SELECT current_setting('neon.branch_id', true) AS branch_id,current_user AS role`;
-  const branch = String(rows[0]?.branch_id ?? "");
-  assertLoyaltyBranch(branch, process.env.VERCEL_ENV);
-  if (
-    process.env.VERCEL_ENV === "production" &&
-    rows[0]?.role !== "weekend_runtime"
-  )
-    throw new Error("Production requires the limited loyalty runtime role.");
-  if (
-    process.env.VERCEL_ENV !== "production" &&
-    branch === "br-crimson-fire-ac3ov0rp"
-  )
-    throw new Error(
-      "Non-production runtime cannot access the production loyalty database.",
-    );
-  return client;
-}
 
 /* ---------- helpers ---------- */
 
@@ -121,7 +89,7 @@ export async function ensureSchema(): Promise<void> {
   } catch (e) {
     if ((e as { code?: string }).code !== "42P01") throw e;
   }
-  if (process.env.VERCEL_ENV === "production")
+  if (loyaltyEnvironment === "production")
     throw new Error("Apply the owner migration before publishing.");
   await db`CREATE TABLE IF NOT EXISTS customers (
     id text PRIMARY KEY,
@@ -544,7 +512,7 @@ export async function getSerialsForDevice(
   return updatedSerials(
     rows.map((r) => ({
       serial: String(r.serial),
-      updatedAt: String(r.update_tag),
+      updatedAt: walletMoveUpdateTime(String(r.serial), String(r.update_tag)),
     })),
     updatedSince,
   );

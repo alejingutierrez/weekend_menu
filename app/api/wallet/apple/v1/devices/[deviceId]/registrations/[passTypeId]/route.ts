@@ -7,6 +7,7 @@ import { walletService } from "@/lib/wallet-service";
 
 import { NextResponse, type NextRequest } from "next/server";
 import { getSerialsForDevice } from "@/lib/loyalty-store";
+import { recordWalletOriginRequest } from "@/lib/wallet-origin-move";
 
 import { validAppleIdentifiers } from "@/lib/apple-protocol";
 
@@ -24,6 +25,9 @@ export async function GET(
       req.nextUrl.searchParams.get("passesUpdatedSince") ?? undefined;
     const { serials, lastUpdated } = await getSerialsForDevice(deviceId, since);
     if (serials.length === 0) return new NextResponse(null, { status: 204 });
+    for (const serial of serials) {
+      recordWalletOriginRequest(serial, "poll", req.headers, { id: deviceId });
+    }
     return NextResponse.json({ serialNumbers: serials, lastUpdated });
   });
 }

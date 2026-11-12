@@ -1,5 +1,5 @@
 /**
- * Menu storage. Uses Vercel Blob in any environment that has
+ * Menu storage. Uses S3 on AWS and Vercel Blob in any environment that has
  * `BLOB_READ_WRITE_TOKEN` set (production on Vercel, or local dev
  * if the token is pulled). Falls back to the bundled `data/menu.json`
  * when the token is missing OR when the blob is empty (first deploy).
@@ -12,9 +12,11 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Menu, Temporada } from "./menu-types";
+import { awsStorageBucket, readAwsObject, writeAwsObject } from "./aws-storage";
 
 const FILE_PATH = path.join(process.cwd(), "data", "menu.json");
 const BLOB_KEY = "menu.json";
+const AWS_KEY = "menu/menu.json";
 const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
 /**
@@ -108,6 +110,9 @@ async function writeToFile(menu: Menu): Promise<void> {
 }
 
 export async function readMenu(): Promise<Menu> {
+  if (awsStorageBucket) {
+    return normalizeMenu(JSON.parse(await readAwsObject(AWS_KEY)));
+  }
   if (BLOB_TOKEN) {
     const fromBlob = await readFromBlob();
     if (fromBlob) return fromBlob;
@@ -117,6 +122,10 @@ export async function readMenu(): Promise<Menu> {
 }
 
 export async function writeMenu(menu: Menu): Promise<void> {
+  if (awsStorageBucket) {
+    await writeAwsObject(AWS_KEY, JSON.stringify(menu, null, 2), "application/json", true);
+    return;
+  }
   if (BLOB_TOKEN) {
     await writeToBlob(menu);
     return;

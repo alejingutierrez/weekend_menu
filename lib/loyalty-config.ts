@@ -34,3 +34,21 @@ export function assertLoyaltyDatabase(
     );
   }
 }
+
+export function assertRdsDatabase(
+  value: string,
+  environment: string | undefined,
+  expectedHost: string | undefined,
+): URL {
+  const url = new URL(value);
+  const isProduction = environment === "production";
+  if (url.protocol !== "postgresql:" || !url.hostname.endsWith(".rds.amazonaws.com"))
+    throw new Error("The RDS loyalty database URL is invalid.");
+  if (
+    isProduction &&
+    (url.hostname !== expectedHost || url.pathname !== "/weekend" || url.username !== "weekend_runtime")
+  ) throw new Error("The RDS loyalty database does not match production.");
+  if (!isProduction && url.pathname === "/weekend")
+    throw new Error("Non-production runtime cannot access the production loyalty database.");
+  return url;
+}
