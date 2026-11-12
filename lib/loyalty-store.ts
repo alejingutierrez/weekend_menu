@@ -500,7 +500,7 @@ export async function getRegistrationsForSerial(
 export async function getSerialsForDevice(
   deviceLibraryId: string,
   updatedSince?: string,
-): Promise<{ serials: string[]; lastUpdated: string }> {
+): Promise<{ serials: string[]; lastUpdated: string; registeredSerials: string[] }> {
   const db = await sql();
   const rows = (await db`
     SELECT r.serial AS serial, to_char(GREATEST(c.updated_at,r.updated_at) AT TIME ZONE 'UTC',
@@ -509,13 +509,14 @@ export async function getSerialsForDevice(
     JOIN customers c ON c.id = r.serial OR c.id =
       (SELECT customer_id FROM customer_aliases WHERE alias_id = r.serial)
     WHERE r.device_library_id = ${deviceLibraryId} AND r.revoked_at IS NULL`) as Row[];
-  return updatedSerials(
-    rows.map((r) => ({
-      serial: String(r.serial),
-      updatedAt: walletMoveUpdateTime(String(r.serial), String(r.update_tag)),
-    })),
-    updatedSince,
-  );
+  const registrations = rows.map((r) => ({
+    serial: String(r.serial),
+    updatedAt: walletMoveUpdateTime(String(r.serial), String(r.update_tag)),
+  }));
+  return {
+    ...updatedSerials(registrations, updatedSince),
+    registeredSerials: registrations.map(({ serial }) => serial),
+  };
 }
 
 /** Retire invalid Apple devices without erasing their registration history. */

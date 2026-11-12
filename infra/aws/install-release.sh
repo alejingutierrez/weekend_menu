@@ -54,6 +54,17 @@ if [[ "$origin" == prepare || "$action" == prepare ]]; then
   printf 'Weekend release %s compiled and prepared.\n' "$release"
   exit 0
 fi
+aws secretsmanager get-secret-value --secret-id "$secret_arn" --region us-east-1 \
+  --query SecretString --output text | python3 -c '
+import json
+import sys
+
+origin = sys.argv[1]
+settings = json.load(sys.stdin)
+wallet_origin = settings.get("WALLET_MOVE_ORIGIN")
+if settings.get("PUBLIC_BASE_URL") != origin or (wallet_origin and wallet_origin != origin):
+    sys.exit("The runtime and Wallet must use the published AWS origin.")
+' "$origin"
 printf 'AWS_REGION=us-east-1\nWEEKEND_SECRET_ARN=%s\n' "$secret_arn" >/etc/weekend/service.env
 chown root:weekend /etc/weekend/service.env
 chmod 0640 /etc/weekend/service.env

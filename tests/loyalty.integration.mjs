@@ -217,11 +217,14 @@ test(
         assert.equal((await store.getRegistrationsForSerial(c.id)).length, 1);
         const tags = await store.getSerialsForDevice("isolated-device");
         assert.deepEqual(tags.serials, [alias]);
-        assert.deepEqual(
-          (await store.getSerialsForDevice("isolated-device", tags.lastUpdated))
-            .serials,
-          [],
+        const current = await store.getSerialsForDevice(
+          "isolated-device",
+          tags.lastUpdated,
         );
+        assert.deepEqual(current.serials, []);
+        assert.deepEqual(current.registeredSerials, [alias]);
+        const unknown = await store.getSerialsForDevice("unregistered-device");
+        assert.deepEqual(unknown.registeredSerials, []);
       },
     );
     await t.test(

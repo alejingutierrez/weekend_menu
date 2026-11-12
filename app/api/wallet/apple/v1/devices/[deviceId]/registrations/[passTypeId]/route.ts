@@ -23,11 +23,12 @@ export async function GET(
       return new NextResponse(null, { status: 404 });
     const since =
       req.nextUrl.searchParams.get("passesUpdatedSince") ?? undefined;
-    const { serials, lastUpdated } = await getSerialsForDevice(deviceId, since);
-    if (serials.length === 0) return new NextResponse(null, { status: 204 });
-    for (const serial of serials) {
+    const { serials, lastUpdated, registeredSerials } =
+      await getSerialsForDevice(deviceId, since);
+    for (const serial of registeredSerials) {
       recordWalletOriginRequest(serial, "poll", req.headers, { id: deviceId });
     }
+    if (serials.length === 0) return new NextResponse(null, { status: 204 });
     return NextResponse.json({ serialNumbers: serials, lastUpdated });
   });
 }
